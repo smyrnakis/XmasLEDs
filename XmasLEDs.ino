@@ -291,8 +291,8 @@ void loop(){
                         client.println("<p>Time: " + formatedTime + "</p>");
 
                         client.println("<table>");
-                        client,println("<tr>");
-                        client,println("<th>");
+                        client.println("<tr>");
+                        client.println("<th>");
 
                         // Display current state, and ON/OFF buttons for LEDs_1 (D1) 
                         // client.println("<p>LED_1 - State " + outStateLED_1 + "</p>");
@@ -303,8 +303,8 @@ void loop(){
                             client.println("<p><a href=\"/1/off\"><button class=\"button button2\">OFF</button></a></p>");
                         }
 
-                        client,println("</th>");
-                        client,println("<th>");
+                        client.println("</th>");
+                        client.println("<th>");
 
                         // Display current state, and ON/OFF buttons for LEDs_2 (D2)
                         // client.println("<p>LED_2 - State " + outStateLED_2 + "</p>");
@@ -315,9 +315,9 @@ void loop(){
                             client.println("<p><a href=\"/2/off\"><button class=\"button button2\">OFF</button></a></p>");
                         }
 
-                        client,println("</th>");
-                        client,println("</tr>");
-                        client,println("</table>");
+                        client.println("</th>");
+                        client.println("</tr>");
+                        client.println("</table>");
 
                         client.println("</body></html>");
 
