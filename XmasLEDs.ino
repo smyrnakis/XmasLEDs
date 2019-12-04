@@ -251,8 +251,7 @@ void loop(){
                         client.println("Content-type:text/html");
                         client.println("Connection: close");
                         client.println();
-                        
-                        // turns the GPIOs on and off
+
                         if (httpHeader.indexOf("GET /1/on") >= 0) {
                             Serial.println("LEDs_1 on");
                             outStateLED_1 = "on";
@@ -289,23 +288,37 @@ void loop(){
                         // Web Page Heading
                         client.println("<body><h1>XmasLEDs configuration</h1>");
 
+                        client.println("<p>Time: " + formatedTime + "</p>");
+
+                        client.println("<table>");
+                        client,println("<tr>");
+                        client,println("<th>");
+
                         // Display current state, and ON/OFF buttons for LEDs_1 (D1) 
-                        client.println("<p>LED_1 - State " + outStateLED_1 + "</p>");
+                        // client.println("<p>LED_1 - State " + outStateLED_1 + "</p>");
                         // If the outStateLED_1 is off, it displays the ON button       
                         if (outStateLED_1=="off") {
                             client.println("<p><a href=\"/1/on\"><button class=\"button\">ON</button></a></p>");
                         } else {
                             client.println("<p><a href=\"/1/off\"><button class=\"button button2\">OFF</button></a></p>");
-                        } 
+                        }
+
+                        client,println("</th>");
+                        client,println("<th>");
 
                         // Display current state, and ON/OFF buttons for LEDs_2 (D2)
-                        client.println("<p>LED_2 - State " + outStateLED_2 + "</p>");
+                        // client.println("<p>LED_2 - State " + outStateLED_2 + "</p>");
                         // If the outStateLED_2 is off, it displays the ON button       
                         if (outStateLED_2=="off") {
                             client.println("<p><a href=\"/2/on\"><button class=\"button\">ON</button></a></p>");
                         } else {
                             client.println("<p><a href=\"/2/off\"><button class=\"button button2\">OFF</button></a></p>");
                         }
+
+                        client,println("</th>");
+                        client,println("</tr>");
+                        client,println("</table>");
+
                         client.println("</body></html>");
 
                         // The HTTP response ends with another blank line
@@ -316,7 +329,7 @@ void loop(){
                         currentLine = "";
                     }
                 } else if (c != '\r') {  // if you got anything else but a carriage return character,
-                currentLine += c;      // add it to the end of the currentLine
+                    currentLine += c;      // add it to the end of the currentLine
                 }
             }
         }
