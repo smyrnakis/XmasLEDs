@@ -208,21 +208,146 @@ void serialPrintAll() {
     Serial.println();
 }
 
+void handleCLientConnection() {
+    String currentLine = "";                    // make a String to hold incoming data from the client
+    unsigned long currentTime;
+    currentTime = millis();
+    previousTime = currentTime;
+    while (client.connected() && currentTime - previousTime <= timeoutTime) { // loop while the client's connected
+        currentTime = millis();         
+        if (client.available()) {                   // if there's bytes to read from the client,
+            char c = client.read();                 // read a byte, then
+            Serial.write(c);                        // print it out the serial monitor
+            httpHeader += c;
+            if (c == '\n') {                        // if the byte is a newline character
+                // if the current line is blank, you got two newline characters in a row.
+                // that's the end of the client HTTP request, so send a response:
+                if (currentLine.length() == 0) {
+                    // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+                    // and a content-type so the client knows what's coming, then a blank line:
+                    client.println("HTTP/1.1 200 OK");
+                    client.println("Content-type:text/html");
+                    client.println("Connection: close");
+                    client.println();
+
+                    if (httpHeader.indexOf("GET /1/on") >= 0) {
+                        Serial.println("LEDs_1 on");
+                        outStateLED_1 = "on";
+                        digitalWrite(LEDS_1, HIGH);
+                    }
+                    else if (httpHeader.indexOf("GET /1/off") >= 0) {
+                        Serial.println("LEDs_1 off");
+                        outStateLED_1 = "off";
+                        digitalWrite(LEDS_1, LOW);
+                    }
+                    else if (httpHeader.indexOf("GET /2/on") >= 0) {
+                        Serial.println("LEDs_2 on");
+                        outStateLED_2 = "on";
+                        digitalWrite(LEDS_2, HIGH);
+                    }
+                    else if (httpHeader.indexOf("GET /2/off") >= 0) {
+                        Serial.println("LEDs_2 off");
+                        outStateLED_2 = "off";
+                        digitalWrite(LEDS_2, LOW);
+                    }
+                    else if (httpHeader.indexOf("GET /lum/up") >= 0) {
+                        if (luminosity < 1024) { luminosity++; }
+                        Serial.print("Luminosity up (");
+                        Serial.print(luminosity);
+                        Serial.println(")");
+                    }
+                    else if (httpHeader.indexOf("GET /lum/do") >= 0) {
+                        if (luminosity > 0) { luminosity--; }
+                        Serial.print("Luminosity down (");
+                        Serial.print(luminosity);
+                        Serial.println(")");
+                    }
+
+                    // Display the HTML web page
+                    client.println("<!DOCTYPE html><html>");
+                    // client.println("<meta http-equiv=\"refresh\" content=\"5\" >\n");
+                    client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+                    client.println("<link rel=\"icon\" href=\"data:,\">");
+                    // CSS to style the on/off buttons 
+                    // Feel free to change the background-color and font-size attributes to fit your preferences
+                    client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
+                    client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;");
+                    client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
+                    client.println(".button2 {background-color: #77878A;}</style></head>");
+
+                    // Web Page Heading
+                    client.println("<body><h1>XmasLEDs configuration</h1>");
+
+                    client.println("<p><h3>Time: " + formatedTime + "</h3></p>");
+
+                    client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
+                    client.println("<tr>");
+                    client.println("<th>");
+
+                    // Display current state, and ON/OFF buttons for LEDs_1 (D1) 
+                    // client.println("<p>LED_1 - State " + outStateLED_1 + "</p>");
+                    // If the outStateLED_1 is off, it displays the ON button       
+                    if (outStateLED_1=="off") {
+                        client.println("<p><a href=\"/1/on\"><button class=\"button\">ON</button></a></p>");
+                    } else {
+                        client.println("<p><a href=\"/1/off\"><button class=\"button button2\">OFF</button></a></p>");
+                    }
+
+                    client.println("</th>");
+                    client.println("<th>");
+
+                    // Display current state, and ON/OFF buttons for LEDs_2 (D2)
+                    // client.println("<p>LED_2 - State " + outStateLED_2 + "</p>");
+                    // If the outStateLED_2 is off, it displays the ON button       
+                    if (outStateLED_2=="off") {
+                        client.println("<p><a href=\"/2/on\"><button class=\"button\">ON</button></a></p>");
+                    } else {
+                        client.println("<p><a href=\"/2/off\"><button class=\"button button2\">OFF</button></a></p>");
+                    }
+
+                    client.println("</th>");
+                    client.println("</tr>");
+                    client.println("<tr>");
+                    client.println("<th>");
+                    client.println("<p><a href=\"/lum/up\"><button class=\"button\">+</button></a></p>");
+                    client.println("</th>");
+                    client.println("<th>");
+                    client.println("<p><a href=\"/lum/do\"><button class=\"button\">-</button></a></p>");
+                    client.println("</th>");
+                    client.println("</tr>");
+                    client.println("</table>");
+
+                    client.println("</body></html>");
+
+                    // The HTTP response ends with another blank line
+                    client.println();
+                    // Break out of the while loop
+                    break;
+                } else { // if you got a newline, then clear currentLine
+                    currentLine = "";
+                }
+            } else if (c != '\r') {  // if you got anything else but a carriage return character,
+                currentLine += c;      // add it to the end of the currentLine
+            }
+        }
+    }
+}
+
 
 void loop(){
     ArduinoOTA.handle();
 
-    unsigned long currentTime = millis();
+    unsigned long currentTimeFunc = millis();
 
     // pull the time
-    if ((currentTime % ntpInterval == 0) && (allowNtp)) {
+    if ((currentTimeFunc % ntpInterval == 0) && (allowNtp)) {
         // Serial.println("Pulling NTP...");
         pullNTPtime(false);
         allowNtp = false;
     }
 
     // debounce per second
-    if (currentTime % secondInterval == 0) {
+    if (currentTimeFunc % secondInterval == 0) {
         // debounce for NTP calls
         allowNtp = true;
     }
@@ -234,127 +359,9 @@ void loop(){
 
     if (client) {                                   // If a new client connects,
         Serial.println("New Client.");              // print a message out in the serial port
-        String currentLine = "";                    // make a String to hold incoming data from the client
-        currentTime = millis();
-        previousTime = currentTime;
-        while (client.connected() && currentTime - previousTime <= timeoutTime) { // loop while the client's connected
-            currentTime = millis();         
-            if (client.available()) {                   // if there's bytes to read from the client,
-                char c = client.read();                 // read a byte, then
-                Serial.write(c);                        // print it out the serial monitor
-                httpHeader += c;
-                if (c == '\n') {                        // if the byte is a newline character
-                    // if the current line is blank, you got two newline characters in a row.
-                    // that's the end of the client HTTP request, so send a response:
-                    if (currentLine.length() == 0) {
-                        // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-                        // and a content-type so the client knows what's coming, then a blank line:
-                        client.println("HTTP/1.1 200 OK");
-                        client.println("Content-type:text/html");
-                        client.println("Connection: close");
-                        client.println();
+        
+        handleCLientConnection();
 
-                        if (httpHeader.indexOf("GET /1/on") >= 0) {
-                            Serial.println("LEDs_1 on");
-                            outStateLED_1 = "on";
-                            digitalWrite(LEDS_1, HIGH);
-                        }
-                        else if (httpHeader.indexOf("GET /1/off") >= 0) {
-                            Serial.println("LEDs_1 off");
-                            outStateLED_1 = "off";
-                            digitalWrite(LEDS_1, LOW);
-                        }
-                        else if (httpHeader.indexOf("GET /2/on") >= 0) {
-                            Serial.println("LEDs_2 on");
-                            outStateLED_2 = "on";
-                            digitalWrite(LEDS_2, HIGH);
-                        }
-                        else if (httpHeader.indexOf("GET /2/off") >= 0) {
-                            Serial.println("LEDs_2 off");
-                            outStateLED_2 = "off";
-                            digitalWrite(LEDS_2, LOW);
-                        }
-                        else if (httpHeader.indexOf("GET /lum/up") >= 0) {
-                            if (luminosity < 1024) { luminosity++; }
-                            Serial.print("Luminosity up (");
-                            Serial.print(luminosity);
-                            Serial.println(")");
-                        }
-                        else if (httpHeader.indexOf("GET /lum/do") >= 0) {
-                            if (luminosity > 0) { luminosity--; }
-                            Serial.print("Luminosity down (");
-                            Serial.print(luminosity);
-                            Serial.println(")");
-                        }
-
-                        // Display the HTML web page
-                        client.println("<!DOCTYPE html><html>");
-                        // client.println("<meta http-equiv=\"refresh\" content=\"5\" >\n");
-                        client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-                        client.println("<link rel=\"icon\" href=\"data:,\">");
-                        // CSS to style the on/off buttons 
-                        // Feel free to change the background-color and font-size attributes to fit your preferences
-                        client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-                        client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;");
-                        client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-                        client.println(".button2 {background-color: #77878A;}</style></head>");
-
-                        // Web Page Heading
-                        client.println("<body><h1>XmasLEDs configuration</h1>");
-
-                        client.println("<p>Time: " + formatedTime + "</p>");
-
-                        client.println("<table>");
-                        client.println("<tr>");
-                        client.println("<th>");
-
-                        // Display current state, and ON/OFF buttons for LEDs_1 (D1) 
-                        // client.println("<p>LED_1 - State " + outStateLED_1 + "</p>");
-                        // If the outStateLED_1 is off, it displays the ON button       
-                        if (outStateLED_1=="off") {
-                            client.println("<p><a href=\"/1/on\"><button class=\"button\">ON</button></a></p>");
-                        } else {
-                            client.println("<p><a href=\"/1/off\"><button class=\"button button2\">OFF</button></a></p>");
-                        }
-
-                        client.println("</th>");
-                        client.println("<th>");
-
-                        // Display current state, and ON/OFF buttons for LEDs_2 (D2)
-                        // client.println("<p>LED_2 - State " + outStateLED_2 + "</p>");
-                        // If the outStateLED_2 is off, it displays the ON button       
-                        if (outStateLED_2=="off") {
-                            client.println("<p><a href=\"/2/on\"><button class=\"button\">ON</button></a></p>");
-                        } else {
-                            client.println("<p><a href=\"/2/off\"><button class=\"button button2\">OFF</button></a></p>");
-                        }
-
-                        client.println("</th>");
-                        client.println("</tr>");
-                        client.println("<tr>");
-                        client.println("<th>");
-                        client.println("<p><a href=\"/lum/up\"><button class=\"button\">+</button></a></p>");
-                        client.println("</th>");
-                        client.println("<th>");
-                        client.println("<p><a href=\"/lum/do\"><button class=\"button\">-</button></a></p>");
-                        client.println("</th>");
-                        client.println("</tr>");
-                        client.println("</table>");
-
-                        client.println("</body></html>");
-
-                        // The HTTP response ends with another blank line
-                        client.println();
-                        // Break out of the while loop
-                        break;
-                    } else { // if you got a newline, then clear currentLine
-                        currentLine = "";
-                    }
-                } else if (c != '\r') {  // if you got anything else but a carriage return character,
-                    currentLine += c;      // add it to the end of the currentLine
-                }
-            }
-        }
         // Clear the header variable
         httpHeader = "";
         // Close the connection
