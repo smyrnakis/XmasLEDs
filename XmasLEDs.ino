@@ -32,6 +32,8 @@ String formatedTime;
 String outStateLED_1 = "off";
 String outStateLED_2 = "off";
 
+unsigned int luminosity = 768;
+
 bool allowNtp = true;
 
 unsigned long previousMillis = 0;
@@ -272,6 +274,18 @@ void loop(){
                             outStateLED_2 = "off";
                             digitalWrite(LEDS_2, LOW);
                         }
+                        else if (httpHeader.indexOf("GET /lum/up") >= 0) {
+                            if (luminosity < 1024) { luminosity++; }
+                            Serial.print("Luminosity up (");
+                            Serial.print(luminosity);
+                            Serial.println(")");
+                        }
+                        else if (httpHeader.indexOf("GET /lum/do") >= 0) {
+                            if (luminosity > 0) { luminosity--; }
+                            Serial.print("Luminosity down (");
+                            Serial.print(luminosity);
+                            Serial.println(")");
+                        }
 
                         // Display the HTML web page
                         client.println("<!DOCTYPE html><html>");
@@ -315,6 +329,14 @@ void loop(){
                             client.println("<p><a href=\"/2/off\"><button class=\"button button2\">OFF</button></a></p>");
                         }
 
+                        client.println("</th>");
+                        client.println("</tr>");
+                        client.println("<tr>");
+                        client.println("<th>");
+                        client.println("<p><a href=\"/lum/up\"><button class=\"button\">+</button></a></p>");
+                        client.println("</th>");
+                        client.println("<th>");
+                        client.println("<p><a href=\"/lum/do\"><button class=\"button\">-</button></a></p>");
                         client.println("</th>");
                         client.println("</tr>");
                         client.println("</table>");
