@@ -13,8 +13,8 @@
 // #define LEDS_1 D1
 // #define LEDS_2 D2
 
-#define LEDS_1 D0
-#define LEDS_2 D4
+#define LEDS_1 D7
+#define LEDS_2 D8
 
 char defaultSSID[] = WIFI_DEFAULT_SSID;
 char defaultPASS[] = WIFI_DEFAULT_PASS;
@@ -234,21 +234,25 @@ void handleCLientConnection() {
                         Serial.println("LEDs_1 on");
                         outStateLED_1 = "on";
                         digitalWrite(LEDS_1, HIGH);
+                        // digitalWrite(ESPLED, LOW);
                     }
                     else if (httpHeader.indexOf("GET /1/off") >= 0) {
                         Serial.println("LEDs_1 off");
                         outStateLED_1 = "off";
                         digitalWrite(LEDS_1, LOW);
+                        // digitalWrite(ESPLED, HIGH);
                     }
                     else if (httpHeader.indexOf("GET /2/on") >= 0) {
                         Serial.println("LEDs_2 on");
                         outStateLED_2 = "on";
                         digitalWrite(LEDS_2, HIGH);
+                        // digitalWrite(PCBLED, LOW);
                     }
                     else if (httpHeader.indexOf("GET /2/off") >= 0) {
                         Serial.println("LEDs_2 off");
                         outStateLED_2 = "off";
                         digitalWrite(LEDS_2, LOW);
+                        // digitalWrite(PCBLED, HIGH);
                     }
                     else if (httpHeader.indexOf("GET /lum/up") >= 0) {
                         if (luminosity < 1024) { luminosity++; }
@@ -288,9 +292,9 @@ void handleCLientConnection() {
                     // client.println("<p>LED_1 - State " + outStateLED_1 + "</p>");
                     // If the outStateLED_1 is off, it displays the ON button       
                     if (outStateLED_1=="off") {
-                        client.println("<p><a href=\"/1/on\"><button class=\"button\">ON</button></a></p>");
+                        client.println("<p><a href=\"/1/on\"><button class=\"button button2\">OFF</button></a></p>");
                     } else {
-                        client.println("<p><a href=\"/1/off\"><button class=\"button button2\">OFF</button></a></p>");
+                        client.println("<p><a href=\"/1/off\"><button class=\"button\">ON</button></a></p>");
                     }
 
                     client.println("</th>");
@@ -300,9 +304,9 @@ void handleCLientConnection() {
                     // client.println("<p>LED_2 - State " + outStateLED_2 + "</p>");
                     // If the outStateLED_2 is off, it displays the ON button       
                     if (outStateLED_2=="off") {
-                        client.println("<p><a href=\"/2/on\"><button class=\"button\">ON</button></a></p>");
+                        client.println("<p><a href=\"/2/on\"><button class=\"button button2\">OFF</button></a></p>");
                     } else {
-                        client.println("<p><a href=\"/2/off\"><button class=\"button button2\">OFF</button></a></p>");
+                        client.println("<p><a href=\"/2/off\"><button class=\"button\">ON</button></a></p>");
                     }
 
                     client.println("</th>");
