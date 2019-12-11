@@ -11,8 +11,6 @@
 
 #define PCBLED D0 // 16 , LED_BUILTIN
 #define ESPLED D4 // 2
-// #define LEDS_1 D1
-// #define LEDS_2 D2
 
 #define LEDS_1 D7
 #define LEDS_2 D8
@@ -36,8 +34,9 @@ bool outStateLED_2 = false;
 unsigned int luminosity = 768;
 
 bool allowNtp = true;
+bool allowPing = true;
 bool autoMode = false;
-bool pingOk = false;
+bool pingResult = false;
 
 unsigned long previousMillis = 0;
 
@@ -45,7 +44,7 @@ unsigned long previousMillis = 0;
 unsigned long previousTime = 0; 
 const long timeoutTime = 2000;
 
-const int ntpInterval = 2000;
+const int ntpInterval = 1000;
 const int secondInterval = 1000;
 
 // Network Time Protocol
@@ -215,8 +214,9 @@ bool pingStatus() {
     IPAddress ipOnePlus (192, 168, 1, 53);
     IPAddress ipXiaomi (192, 168, 1, 54);
 
-    bool pingRet;
-    
+    allowPing = false;
+
+    bool pingRet;    
     pingRet = Ping.ping(ipOnePlus);
 
     if (pingRet) {
@@ -312,7 +312,7 @@ void handleCLientConnection() {
 
                     // Display the HTML web page
                     client.println("<!DOCTYPE html><html>");
-                    // client.println("<meta http-equiv=\"refresh\" content=\"5\" >\n");
+                    client.println("<meta http-equiv=\"refresh\" content=\"10\" >\n");
                     client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
                     client.println("<link rel=\"icon\" href=\"data:,\">");
                     // CSS to style the on/off buttons 
@@ -320,7 +320,9 @@ void handleCLientConnection() {
                     client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
                     client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;");
                     client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
+                    client.println(".button3 {background-color: #ff3300;}");
                     client.println(".button2 {background-color: #77878A;}</style></head>");
+
 
                     // Web Page Heading
                     client.println("<body><h1>XmasLEDs configuration</h1>");
@@ -330,28 +332,21 @@ void handleCLientConnection() {
                     client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
                     client.println("<tr>");
                     client.println("<th>");
-
-                    // Display current state, and ON/OFF buttons for LEDs_1 (D1) 
-                    // client.println("<p>LED_1 - State " + outStateLED_1 + "</p>");
-                    // If the outStateLED_1 is off, it displays the ON button       
                     if (outStateLED_1) {
-                        client.println("<p><a href=\"/1/off\"><button class=\"button\">ON</button></a></p>");
+                        client.println("<p><a href=\"/1/off\"><button disabled class=\"button\">ON</button></a></p>");
                     } else {
-                        client.println("<p><a href=\"/1/on\"><button class=\"button button2\">OFF</button></a></p>");
+                        client.println("<p><a href=\"/1/on\"><button disabled class=\"button button3\">OFF</button></a></p>");
+                        // client.println("<p><a href=\"/1/on\"><button class=\"button button2\">OFF</button></a></p>");
+
                     }
-
                     client.println("</th>");
-                    client.println("<th>");
 
-                    // Display current state, and ON/OFF buttons for LEDs_2 (D2)
-                    // client.println("<p>LED_2 - State " + outStateLED_2 + "</p>");
-                    // If the outStateLED_2 is off, it displays the ON button       
+                    client.println("<th>");
                     if (outStateLED_2) {
                         client.println("<p><a href=\"/2/off\"><button class=\"button\">ON</button></a></p>");
                     } else {
                         client.println("<p><a href=\"/2/on\"><button class=\"button button2\">OFF</button></a></p>");
                     }
-
                     client.println("</th>");
                     client.println("</tr>");
 
@@ -366,7 +361,11 @@ void handleCLientConnection() {
 
                     client.println("<tr>");
                     client.println("<td> colspan=\"2\">");
-                    client.println("<p><a href=\"/lum/do\"><button class=\"button\">Auto Mode</button></a></p>");
+                    if (autoMode) {
+                        client.println("<p><a href=\"/auto\"><button class=\"button\">Auto Mode</button></a></p>");
+                    } else {
+                        client.println("<p><a href=\"/auto\"><button class=\"button button2\">Auto Mode</button></a></p>");
+                    }
                     client.println("</td>");
                     client.println("</tr>");
                     client.println("</table>");
@@ -391,34 +390,74 @@ void handleCLientConnection() {
 void loop(){
     ArduinoOTA.handle();
 
-    unsigned long currentTimeFunc = millis();
+    unsigned long currentTimeMillis = millis();
 
     // check current output pingStatus
     outStateLED_1 = digitalRead(LEDS_1);
     outStateLED_2 = digitalRead(LEDS_2);
 
     // pull the time
-    if ((currentTimeFunc % ntpInterval == 0) && (allowNtp)) {
+    if ((currentTimeMillis % ntpInterval == 0) && (allowNtp)) {
         // Serial.println("Pulling NTP...");
         pullNTPtime(false);
         allowNtp = false;
     }
 
-    // debounce per second
-    if (currentTimeFunc % secondInterval == 0) {
-        // debounce for NTP calls
+    // debounce NTP
+    if ((currentTimeMillis % 100 == 0) && (!allowNtp)) {
         allowNtp = true;
     }
+
+    // timeClient.getHours()
+    // timeClient.getMinutes();
+    // timeClient.getSeconds();
+
+    // turn ON/OFF leds (keep powerbank on)
+    if (timeClient.getSeconds() % 2 == 0) {
+        digitalWrite(ESPLED, LOW);
+        digitalWrite(PCBLED, HIGH);
+    }
+    else {
+        digitalWrite(ESPLED, HIGH);
+        digitalWrite(PCBLED, LOW);
+    }
+
+    if (autoMode) {
+        if (timeClient.getHours() > 17) {
+            if (allowPing) {
+                pingResult = pingStatus();
+            }
+            if (pingResult) {
+                // digitalWrite(LEDS_1, HIGH);
+                digitalWrite(LEDS_2, HIGH);
+                // outStateLED_1 = true;
+                outStateLED_2 = true;
+            }
+            else {
+                // digitalWrite(LEDS_1, LOW);
+                digitalWrite(LEDS_2, LOW);
+                // outStateLED_1 = false;
+                outStateLED_2 = false;
+            }
+        }
+        else {
+            // digitalWrite(LEDS_1, LOW);
+            digitalWrite(LEDS_2, LOW);
+            // outStateLED_1 = false;
+            outStateLED_2 = false;
+        }
+    }
+
+    // debounce PING
+    if ((currentTimeMillis % 60000 == 0) && (!allowPing)) {
+        allowPing = true;
+    }
+
 
     // // handle HTTP connections
     // server.handleClient();
 
     client = server.available();                    // Listen for incoming clients
-
-    if (autoMode) {
-        // pingOk = pingStatus();
-
-    }
 
     if (client) {                                   // If a new client connects,
         Serial.println("New Client.");              // print a message out in the serial port
