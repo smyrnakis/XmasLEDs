@@ -208,6 +208,12 @@ void serialPrintAll() {
     Serial.println();
 }
 
+void refreshToRoot() {
+    client.print("<HEAD>");
+    client.print("<meta http-equiv=\"refresh\" content=\"0;url=/\">");
+    client.print("</head>");
+}
+
 void handleCLientConnection() {
     String currentLine = "";                    // make a String to hold incoming data from the client
     unsigned long currentTime;
@@ -234,37 +240,47 @@ void handleCLientConnection() {
                         Serial.println("LEDs_1 on");
                         outStateLED_1 = "on";
                         digitalWrite(LEDS_1, HIGH);
+                        refreshToRoot();
                         // digitalWrite(ESPLED, LOW);
                     }
                     else if (httpHeader.indexOf("GET /1/off") >= 0) {
                         Serial.println("LEDs_1 off");
                         outStateLED_1 = "off";
                         digitalWrite(LEDS_1, LOW);
+                        refreshToRoot();
                         // digitalWrite(ESPLED, HIGH);
                     }
                     else if (httpHeader.indexOf("GET /2/on") >= 0) {
                         Serial.println("LEDs_2 on");
                         outStateLED_2 = "on";
                         digitalWrite(LEDS_2, HIGH);
+                        refreshToRoot();
                         // digitalWrite(PCBLED, LOW);
                     }
                     else if (httpHeader.indexOf("GET /2/off") >= 0) {
                         Serial.println("LEDs_2 off");
                         outStateLED_2 = "off";
                         digitalWrite(LEDS_2, LOW);
+                        refreshToRoot();
                         // digitalWrite(PCBLED, HIGH);
                     }
                     else if (httpHeader.indexOf("GET /lum/up") >= 0) {
-                        if (luminosity < 1024) { luminosity++; }
-                        Serial.print("Luminosity up (");
-                        Serial.print(luminosity);
-                        Serial.println(")");
+                        if (luminosity < 1024) {
+                            luminosity++;
+                            Serial.print("Luminosity up (");
+                            Serial.print(luminosity);
+                            Serial.println(")");
+                        }
+                        refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /lum/do") >= 0) {
-                        if (luminosity > 0) { luminosity--; }
-                        Serial.print("Luminosity down (");
-                        Serial.print(luminosity);
-                        Serial.println(")");
+                        if (luminosity > 0) {
+                            luminosity--; 
+                            Serial.print("Luminosity down (");
+                            Serial.print(luminosity);
+                            Serial.println(")");
+                        }
+                        refreshToRoot();
                     }
 
                     // Display the HTML web page
