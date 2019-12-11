@@ -35,6 +35,7 @@ String outStateLED_2 = "off";
 unsigned int luminosity = 768;
 
 bool allowNtp = true;
+bool autoMode = false;
 
 unsigned long previousMillis = 0;
 
@@ -282,6 +283,10 @@ void handleCLientConnection() {
                         }
                         refreshToRoot();
                     }
+                    else if (httpHeader.indexOf("GET /auto") >= 0) {
+                        autoMode = true;
+                        refreshToRoot();
+                    }
 
                     // Display the HTML web page
                     client.println("<!DOCTYPE html><html>");
@@ -333,6 +338,11 @@ void handleCLientConnection() {
                     client.println("</th>");
                     client.println("<th>");
                     client.println("<p><a href=\"/lum/do\"><button class=\"button\">-</button></a></p>");
+                    client.println("</th>");
+                    client.println("</tr>");
+                    client.println("<tr>");
+                    client.println("<th>colspan=\"2\">");
+                    client.println("<p><a href=\"/lum/do\"><button class=\"button\">Auto Mode</button></a></p>");
                     client.println("</th>");
                     client.println("</tr>");
                     client.println("</table>");
