@@ -6,6 +6,7 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <ESP8266Ping.h>
 #include "secrets.h"
 
 #define PCBLED D0 // 16 , LED_BUILTIN
@@ -36,6 +37,7 @@ unsigned int luminosity = 768;
 
 bool allowNtp = true;
 bool autoMode = false;
+bool pingOk = false;
 
 unsigned long previousMillis = 0;
 
@@ -207,6 +209,26 @@ void serialPrintAll() {
     // Serial.print("Temperature: ");
     // Serial.print(String(temperature));
     Serial.println();
+}
+
+bool pingStatus() {
+    IPAddress ipOnePlus (192, 168, 1, 53);
+    IPAddress ipXiaomi (192, 168, 1, 54);
+
+    bool pingRet;
+    
+    pingRet = Ping.ping(ipOnePlus);
+
+    if (pingRet) {
+        return true;
+    } else {
+        pingRet = Ping.ping(ipXiaomi);
+
+        if (pingRet) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void refreshToRoot() {
@@ -386,6 +408,11 @@ void loop(){
     // server.handleClient();
 
     client = server.available();                    // Listen for incoming clients
+
+    if (autoMode) {
+        pingOk = pingStatus();
+        
+    }
 
     if (client) {                                   // If a new client connects,
         Serial.println("New Client.");              // print a message out in the serial port
