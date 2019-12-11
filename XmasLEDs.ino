@@ -30,8 +30,8 @@ String serverReply;
 String localIPaddress;
 String formatedTime;
 
-String outStateLED_1 = "off";
-String outStateLED_2 = "off";
+bool outStateLED_1 = false;
+bool outStateLED_2 = false;
 
 unsigned int luminosity = 768;
 
@@ -261,28 +261,28 @@ void handleCLientConnection() {
 
                     if (httpHeader.indexOf("GET /1/on") >= 0) {
                         Serial.println("LEDs_1 on");
-                        outStateLED_1 = "on";
+                        outStateLED_1 = true;
                         digitalWrite(LEDS_1, HIGH);
                         refreshToRoot();
                         // digitalWrite(ESPLED, LOW);
                     }
                     else if (httpHeader.indexOf("GET /1/off") >= 0) {
                         Serial.println("LEDs_1 off");
-                        outStateLED_1 = "off";
+                        outStateLED_1 = false;
                         digitalWrite(LEDS_1, LOW);
                         refreshToRoot();
                         // digitalWrite(ESPLED, HIGH);
                     }
                     else if (httpHeader.indexOf("GET /2/on") >= 0) {
                         Serial.println("LEDs_2 on");
-                        outStateLED_2 = "on";
+                        outStateLED_2 = true;
                         digitalWrite(LEDS_2, HIGH);
                         refreshToRoot();
                         // digitalWrite(PCBLED, LOW);
                     }
                     else if (httpHeader.indexOf("GET /2/off") >= 0) {
                         Serial.println("LEDs_2 off");
-                        outStateLED_2 = "off";
+                        outStateLED_2 = false;
                         digitalWrite(LEDS_2, LOW);
                         refreshToRoot();
                         // digitalWrite(PCBLED, HIGH);
@@ -306,7 +306,7 @@ void handleCLientConnection() {
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /auto") >= 0) {
-                        autoMode = true;
+                        autoMode = !autoMode;
                         refreshToRoot();
                     }
 
@@ -334,10 +334,10 @@ void handleCLientConnection() {
                     // Display current state, and ON/OFF buttons for LEDs_1 (D1) 
                     // client.println("<p>LED_1 - State " + outStateLED_1 + "</p>");
                     // If the outStateLED_1 is off, it displays the ON button       
-                    if (outStateLED_1=="off") {
-                        client.println("<p><a href=\"/1/on\"><button class=\"button button2\">OFF</button></a></p>");
-                    } else {
+                    if (outStateLED_1) {
                         client.println("<p><a href=\"/1/off\"><button class=\"button\">ON</button></a></p>");
+                    } else {
+                        client.println("<p><a href=\"/1/on\"><button class=\"button button2\">OFF</button></a></p>");
                     }
 
                     client.println("</th>");
@@ -346,14 +346,15 @@ void handleCLientConnection() {
                     // Display current state, and ON/OFF buttons for LEDs_2 (D2)
                     // client.println("<p>LED_2 - State " + outStateLED_2 + "</p>");
                     // If the outStateLED_2 is off, it displays the ON button       
-                    if (outStateLED_2=="off") {
-                        client.println("<p><a href=\"/2/on\"><button class=\"button button2\">OFF</button></a></p>");
-                    } else {
+                    if (outStateLED_2) {
                         client.println("<p><a href=\"/2/off\"><button class=\"button\">ON</button></a></p>");
+                    } else {
+                        client.println("<p><a href=\"/2/on\"><button class=\"button button2\">OFF</button></a></p>");
                     }
 
                     client.println("</th>");
                     client.println("</tr>");
+
                     client.println("<tr>");
                     client.println("<th>");
                     client.println("<p><a href=\"/lum/up\"><button class=\"button\">+</button></a></p>");
@@ -362,10 +363,11 @@ void handleCLientConnection() {
                     client.println("<p><a href=\"/lum/do\"><button class=\"button\">-</button></a></p>");
                     client.println("</th>");
                     client.println("</tr>");
+
                     client.println("<tr>");
-                    client.println("<th>colspan=\"2\">");
+                    client.println("<td> colspan=\"2\">");
                     client.println("<p><a href=\"/lum/do\"><button class=\"button\">Auto Mode</button></a></p>");
-                    client.println("</th>");
+                    client.println("</td>");
                     client.println("</tr>");
                     client.println("</table>");
 
@@ -391,6 +393,10 @@ void loop(){
 
     unsigned long currentTimeFunc = millis();
 
+    // check current output pingStatus
+    outStateLED_1 = digitalRead(LEDS_1);
+    outStateLED_2 = digitalRead(LEDS_2);
+
     // pull the time
     if ((currentTimeFunc % ntpInterval == 0) && (allowNtp)) {
         // Serial.println("Pulling NTP...");
@@ -410,8 +416,8 @@ void loop(){
     client = server.available();                    // Listen for incoming clients
 
     if (autoMode) {
-        pingOk = pingStatus();
-        
+        // pingOk = pingStatus();
+
     }
 
     if (client) {                                   // If a new client connects,
