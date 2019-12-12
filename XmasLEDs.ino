@@ -7,13 +7,14 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <ESP8266Ping.h>
+#include <ArduinoJson.h>
 #include "secrets.h"
 
 #define PCBLED D0 // 16 , LED_BUILTIN
 #define ESPLED D4 // 2
 
-#define LEDS_1 D7
-#define LEDS_2 D8
+#define USB_1 D7
+#define USB_2 D8
 
 char defaultSSID[] = WIFI_DEFAULT_SSID;
 char defaultPASS[] = WIFI_DEFAULT_PASS;
@@ -47,7 +48,10 @@ const long timeoutTime = 2000;
 const int ntpInterval = 1000;
 const int secondInterval = 1000;
 
-// Network Time Protocol
+// Metereological info for Geneva, CH
+// Sunset time: object/daily/data/0/sunsetTime
+String darkSkyUri = "https://darksky.net/forecast/46.2073,6.1499/si12/en.json";
+
 const long utcOffsetInSeconds = 3600; // 1H (3600) for winter time / 2H (7200) for summer time
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
@@ -62,13 +66,13 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
 void setup() {
     pinMode(PCBLED, OUTPUT);
     pinMode(ESPLED, OUTPUT);
-    pinMode(LEDS_1, OUTPUT);
-    pinMode(LEDS_2, OUTPUT);
+    pinMode(USB_1, OUTPUT);
+    pinMode(USB_2, OUTPUT);
 
     digitalWrite(PCBLED, HIGH);
     digitalWrite(ESPLED, HIGH);
-    digitalWrite(LEDS_1, LOW);
-    digitalWrite(LEDS_1, LOW);
+    digitalWrite(USB_1, LOW);
+    digitalWrite(USB_2, LOW);
 
     Serial.begin(115200);
     delay(100);
@@ -259,35 +263,23 @@ void handleCLientConnection() {
                     client.println("Connection: close");
                     client.println();
 
-                    if (httpHeader.indexOf("GET /1/on") >= 0) {
-                        Serial.println("LEDs_1 on");
+                    if (httpHeader.indexOf("GET /on") >= 0) {
+                        Serial.println("LEDs on");
                         outStateLED_1 = true;
-                        digitalWrite(LEDS_1, HIGH);
-                        refreshToRoot();
-                        // digitalWrite(ESPLED, LOW);
-                    }
-                    else if (httpHeader.indexOf("GET /1/off") >= 0) {
-                        Serial.println("LEDs_1 off");
-                        outStateLED_1 = false;
-                        digitalWrite(LEDS_1, LOW);
-                        refreshToRoot();
-                        // digitalWrite(ESPLED, HIGH);
-                    }
-                    else if (httpHeader.indexOf("GET /2/on") >= 0) {
-                        Serial.println("LEDs_2 on");
                         outStateLED_2 = true;
-                        digitalWrite(LEDS_2, HIGH);
+                        digitalWrite(USB_1, HIGH);
+                        digitalWrite(USB_2, HIGH);
                         refreshToRoot();
-                        // digitalWrite(PCBLED, LOW);
                     }
-                    else if (httpHeader.indexOf("GET /2/off") >= 0) {
-                        Serial.println("LEDs_2 off");
+                    else if (httpHeader.indexOf("GET /off") >= 0) {
+                        Serial.println("LEDs off");
+                        outStateLED_1 = false;
                         outStateLED_2 = false;
-                        digitalWrite(LEDS_2, LOW);
+                        digitalWrite(USB_1, LOW);
+                        digitalWrite(USB_2, LOW);
                         refreshToRoot();
-                        // digitalWrite(PCBLED, HIGH);
                     }
-                    else if (httpHeader.indexOf("GET /lum/up") >= 0) {
+                    else if (httpHeader.indexOf("GET /lumUp") >= 0) {
                         if (luminosity < 1024) {
                             luminosity++;
                             Serial.print("Luminosity up (");
@@ -296,7 +288,7 @@ void handleCLientConnection() {
                         }
                         refreshToRoot();
                     }
-                    else if (httpHeader.indexOf("GET /lum/do") >= 0) {
+                    else if (httpHeader.indexOf("GET /lumDow") >= 0) {
                         if (luminosity > 0) {
                             luminosity--; 
                             Serial.print("Luminosity down (");
@@ -331,42 +323,44 @@ void handleCLientConnection() {
 
                     client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
                     client.println("<tr>");
-                    client.println("<th>");
+                    // client.println("<th>");
                     if (outStateLED_1) {
-                        client.println("<p><a href=\"/1/off\"><button disabled class=\"button\">ON</button></a></p>");
+                        client.println("<p><a href=\"/off\"><button class=\"button\">ON</button></a></p>");
                     } else {
-                        client.println("<p><a href=\"/1/on\"><button disabled class=\"button button3\">OFF</button></a></p>");
-                        // client.println("<p><a href=\"/1/on\"><button class=\"button button2\">OFF</button></a></p>");
+                        // client.println("<p><a href=\"/1/on\"><button class=\"button button3\">OFF</button></a></p>");
+                        client.println("<p><a href=\"/on\"><button class=\"button button2\">OFF</button></a></p>");
 
                     }
-                    client.println("</th>");
+                    // client.println("</th>");
 
-                    client.println("<th>");
-                    if (outStateLED_2) {
-                        client.println("<p><a href=\"/2/off\"><button class=\"button\">ON</button></a></p>");
-                    } else {
-                        client.println("<p><a href=\"/2/on\"><button class=\"button button2\">OFF</button></a></p>");
-                    }
-                    client.println("</th>");
+                    // client.println("<th>");
+                    // if (outStateLED_2) {
+                    //     client.println("<p><a href=\"/2/off\"><button class=\"button\">ON</button></a></p>");
+                    // } else {
+                    //     client.println("<p><a href=\"/2/on\"><button class=\"button button2\">OFF</button></a></p>");
+                    // }
+                    // client.println("</th>");
                     client.println("</tr>");
 
                     client.println("<tr>");
-                    client.println("<th>");
-                    client.println("<p><a href=\"/lum/up\"><button class=\"button\">+</button></a></p>");
-                    client.println("</th>");
-                    client.println("<th>");
-                    client.println("<p><a href=\"/lum/do\"><button class=\"button\">-</button></a></p>");
-                    client.println("</th>");
-                    client.println("</tr>");
-
-                    client.println("<tr>");
-                    client.println("<td> colspan=\"2\">");
+                    // client.println("<td> colspan=\"2\">");
                     if (autoMode) {
                         client.println("<p><a href=\"/auto\"><button class=\"button\">Auto Mode</button></a></p>");
                     } else {
                         client.println("<p><a href=\"/auto\"><button class=\"button button2\">Auto Mode</button></a></p>");
                     }
-                    client.println("</td>");
+                    // client.println("</td>");
+                    client.println("</tr>");
+                    client.println("</table>");
+
+                    client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
+                    client.println("<tr>");
+                    client.println("<th>");
+                    client.println("<p><a href=\"/lumUp\"><button class=\"button\">+</button></a></p>");
+                    client.println("</th>");
+                    client.println("<th>");
+                    client.println("<p><a href=\"/lumDow\"><button class=\"button\">-</button></a></p>");
+                    client.println("</th>");
                     client.println("</tr>");
                     client.println("</table>");
 
@@ -393,8 +387,8 @@ void loop(){
     unsigned long currentTimeMillis = millis();
 
     // check current output pingStatus
-    outStateLED_1 = digitalRead(LEDS_1);
-    outStateLED_2 = digitalRead(LEDS_2);
+    outStateLED_1 = digitalRead(USB_1);
+    outStateLED_2 = digitalRead(USB_2);
 
     // pull the time
     if ((currentTimeMillis % ntpInterval == 0) && (allowNtp)) {
@@ -428,21 +422,21 @@ void loop(){
                 pingResult = pingStatus();
             }
             if (pingResult) {
-                // digitalWrite(LEDS_1, HIGH);
-                digitalWrite(LEDS_2, HIGH);
-                // outStateLED_1 = true;
+                digitalWrite(USB_1, HIGH);
+                digitalWrite(USB_2, HIGH);
+                outStateLED_1 = true;
                 outStateLED_2 = true;
             }
             else {
-                // digitalWrite(LEDS_1, LOW);
-                digitalWrite(LEDS_2, LOW);
-                // outStateLED_1 = false;
+                digitalWrite(USB_1, LOW);
+                digitalWrite(USB_2, LOW);
+                outStateLED_1 = false;
                 outStateLED_2 = false;
             }
         }
         else {
-            // digitalWrite(LEDS_1, LOW);
-            digitalWrite(LEDS_2, LOW);
+            // digitalWrite(USB_1, LOW);
+            digitalWrite(USB_2, LOW);
             // outStateLED_1 = false;
             outStateLED_2 = false;
         }
