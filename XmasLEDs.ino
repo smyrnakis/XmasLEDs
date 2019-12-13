@@ -389,16 +389,28 @@ void loop(){
     // timeClient.getMinutes();
     // timeClient.getSeconds();
 
-    // turn ON/OFF leds (keep powerbank on)
-    if (timeClient.getSeconds() % 2 == 0) {
-        digitalWrite(ESPLED, LOW);
-        digitalWrite(PCBLED, HIGH);
+    // status leds
+    if (outStateLED_1 && outStateLED_2) {
+        if (currentTimeMillis % 1000 == 0) {
+            digitalWrite(ESPLED, LOW);
+        }
+        else {
+            digitalWrite(ESPLED, HIGH);
+        }
+    }
+    else if (outStateLED_1 ^ outStateLED_2) {
+        if (currentTimeMillis % 200 == 0) {
+            digitalWrite(ESPLED, LOW);
+        }
+        else {
+            digitalWrite(ESPLED, HIGH);
+        }
     }
     else {
         digitalWrite(ESPLED, HIGH);
-        digitalWrite(PCBLED, LOW);
     }
 
+    // auto mode handler
     if (autoMode) {
         if (timeClient.getHours() > 17) {
             if (allowPing) {
