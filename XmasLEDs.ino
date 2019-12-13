@@ -318,38 +318,22 @@ void handleCLientConnection() {
 
                     // Web Page Heading
                     client.println("<body><h1>XmasLEDs configuration</h1>");
-
                     client.println("<p><h3>Time: " + formatedTime + "</h3></p>");
 
                     client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
                     client.println("<tr>");
-                    // client.println("<th>");
                     if (outStateLED_1) {
                         client.println("<p><a href=\"/off\"><button class=\"button\">ON</button></a></p>");
                     } else {
-                        // client.println("<p><a href=\"/1/on\"><button class=\"button button3\">OFF</button></a></p>");
                         client.println("<p><a href=\"/on\"><button class=\"button button2\">OFF</button></a></p>");
-
                     }
-                    // client.println("</th>");
-
-                    // client.println("<th>");
-                    // if (outStateLED_2) {
-                    //     client.println("<p><a href=\"/2/off\"><button class=\"button\">ON</button></a></p>");
-                    // } else {
-                    //     client.println("<p><a href=\"/2/on\"><button class=\"button button2\">OFF</button></a></p>");
-                    // }
-                    // client.println("</th>");
                     client.println("</tr>");
-
                     client.println("<tr>");
-                    // client.println("<td> colspan=\"2\">");
                     if (autoMode) {
                         client.println("<p><a href=\"/auto\"><button class=\"button\">Auto Mode</button></a></p>");
                     } else {
                         client.println("<p><a href=\"/auto\"><button class=\"button button2\">Auto Mode</button></a></p>");
                     }
-                    // client.println("</td>");
                     client.println("</tr>");
                     client.println("</table>");
 
@@ -368,7 +352,6 @@ void handleCLientConnection() {
 
                     // The HTTP response ends with another blank line
                     client.println();
-                    // Break out of the while loop
                     break;
                 } else { // if you got a newline, then clear currentLine
                     currentLine = "";
@@ -435,9 +418,9 @@ void loop(){
             }
         }
         else {
-            // digitalWrite(USB_1, LOW);
+            digitalWrite(USB_1, LOW);
             digitalWrite(USB_2, LOW);
-            // outStateLED_1 = false;
+            outStateLED_1 = false;
             outStateLED_2 = false;
         }
     }
