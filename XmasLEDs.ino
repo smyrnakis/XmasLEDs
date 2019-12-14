@@ -29,6 +29,8 @@ String serverReply;
 String localIPaddress;
 String formatedTime;
 
+bool manuallyOn = false;
+bool manuallyOff = false;
 bool outStateLED_1 = false;
 bool outStateLED_2 = false;
 
@@ -265,18 +267,22 @@ void handleCLientConnection() {
 
                     if (httpHeader.indexOf("GET /on") >= 0) {
                         Serial.println("LEDs on");
-                        outStateLED_1 = true;
-                        outStateLED_2 = true;
+                        // outStateLED_1 = true;
+                        // outStateLED_2 = true;
                         digitalWrite(USB_1, HIGH);
                         digitalWrite(USB_2, HIGH);
+                        manuallyOn = true;
+                        manuallyOff = false;
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /off") >= 0) {
                         Serial.println("LEDs off");
-                        outStateLED_1 = false;
-                        outStateLED_2 = false;
+                        // outStateLED_1 = false;
+                        // outStateLED_2 = false;
                         digitalWrite(USB_1, LOW);
                         digitalWrite(USB_2, LOW);
+                        manuallyOn = false;
+                        manuallyOff = true;
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /lumUp") >= 0) {
@@ -322,7 +328,8 @@ void handleCLientConnection() {
 
                     client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
                     client.println("<tr>");
-                    if (outStateLED_1) {
+                    //if (outStateLED_1) {
+                    if (digitalRead(USB_1) || digitalRead(USB_2)) {
                         client.println("<p><a href=\"/off\"><button class=\"button\">ON</button></a></p>");
                     } else {
                         client.println("<p><a href=\"/on\"><button class=\"button button2\">OFF</button></a></p>");
@@ -419,21 +426,23 @@ void loop(){
             if (pingResult) {
                 digitalWrite(USB_1, HIGH);
                 digitalWrite(USB_2, HIGH);
-                outStateLED_1 = true;
-                outStateLED_2 = true;
+                // outStateLED_1 = true;
+                // outStateLED_2 = true;
             }
             else {
                 digitalWrite(USB_1, LOW);
                 digitalWrite(USB_2, LOW);
-                outStateLED_1 = false;
-                outStateLED_2 = false;
+                // outStateLED_1 = false;
+                // outStateLED_2 = false;
             }
         }
         else {
-            digitalWrite(USB_1, LOW);
-            digitalWrite(USB_2, LOW);
-            outStateLED_1 = false;
-            outStateLED_2 = false;
+            if (!manuallyOn) {
+                digitalWrite(USB_1, LOW);
+                digitalWrite(USB_2, LOW);
+                // outStateLED_1 = false;
+                // outStateLED_2 = false;
+            }
         }
     }
 
