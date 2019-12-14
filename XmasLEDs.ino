@@ -54,6 +54,8 @@ const int secondInterval = 1000;
 // Sunset time: object/daily/data/0/sunsetTime
 String darkSkyUri = "https://darksky.net/forecast/46.2073,6.1499/si12/en.json";
 
+const char* thinkSpeakAPIurl = "api.thingspeak.com"; // "184.106.153.149" or api.thingspeak.com
+
 const long utcOffsetInSeconds = 3600; // 1H (3600) for winter time / 2H (7200) for summer time
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
@@ -134,6 +136,33 @@ void handleOTA() {
     else if (error == OTA_END_ERROR) Serial.println("End Failed");
     });
     ArduinoOTA.begin();
+}
+
+// Sending data to Thingspeak
+void thingSpeakRequest() {
+  client.stop();
+  if (client.connect(thinkSpeakAPIurl,80)) 
+  {
+    String postStr = apiKey;
+    postStr +="&field6=";
+    postStr += String(digitalRead(USB_1));
+    postStr += "\r\n\r\n";
+
+    client.print("POST /update HTTP/1.1\n");
+    client.print("Host: api.thingspeak.com\n");
+    client.print("Connection: close\n");
+    client.print("X-THINGSPEAKAPIKEY: " + (String)apiKey + "\n");
+    client.print("Content-Type: application/x-www-form-urlencoded\n");
+    client.print("Content-Length: ");
+    client.print(postStr.length());
+    client.print("\n\n");
+    client.print(postStr);
+    client.stop();
+    // Serial.println("Data uploaded to thingspeak!");
+  }
+  else {
+    Serial.println("ERROR: could not upload data to thingspeak!");
+  }
 }
 
 // // Handle HTML page calls
@@ -446,11 +475,28 @@ void loop(){
         }
     }
 
+    // auto turn off if not at home
+    if (manuallyOn) {
+        if (allowPing) {
+            pingResult = pingStatus();
+        }
+        if (!pingResult) {
+            digitalWrite(USB_1, LOW);
+            digitalWrite(USB_2, LOW);
+            // outStateLED_1 = false;
+            // outStateLED_2 = false;
+        }
+    }
+
     // debounce PING
     if ((currentTimeMillis % 60000 == 0) && (!allowPing)) {
         allowPing = true;
     }
 
+    // update Thingspeak
+    if (currentTimeMillis % 60000) {
+        thingSpeakRequest();
+    }
 
     // // handle HTTP connections
     // server.handleClient();
