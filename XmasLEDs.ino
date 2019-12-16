@@ -38,10 +38,12 @@ unsigned int luminosity = 768;
 
 bool allowNtp = true;
 bool allowPing = true;
-bool autoMode = false;
+bool allowThSp = true;
+bool autoMode = true;
 bool pingResult = false;
 
 unsigned long previousMillis = 0;
+unsigned long lastNTPtime = 0;
 
 // unsigned long currentTime = millis();
 unsigned long previousTime = 0; 
@@ -61,6 +63,7 @@ char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursd
 
 WiFiServer server(80);
 WiFiClient client;
+WiFiClient clientThSp;
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
@@ -140,29 +143,29 @@ void handleOTA() {
 
 // Sending data to Thingspeak
 void thingSpeakRequest() {
-  client.stop();
-  if (client.connect(thinkSpeakAPIurl,80)) 
-  {
-    String postStr = apiKey;
-    postStr +="&field6=";
-    postStr += String(digitalRead(USB_1));
-    postStr += "\r\n\r\n";
+    if (clientThSp.connect(thinkSpeakAPIurl,80)) 
+    {
+        String postStr = apiKey;
+        postStr +="&field6=";
+        postStr += String(digitalRead(USB_1));
+        postStr += "\r\n\r\n";
 
-    client.print("POST /update HTTP/1.1\n");
-    client.print("Host: api.thingspeak.com\n");
-    client.print("Connection: close\n");
-    client.print("X-THINGSPEAKAPIKEY: " + (String)apiKey + "\n");
-    client.print("Content-Type: application/x-www-form-urlencoded\n");
-    client.print("Content-Length: ");
-    client.print(postStr.length());
-    client.print("\n\n");
-    client.print(postStr);
-    client.stop();
-    // Serial.println("Data uploaded to thingspeak!");
-  }
-  else {
-    Serial.println("ERROR: could not upload data to thingspeak!");
-  }
+        clientThSp.print("POST /update HTTP/1.1\n");
+        clientThSp.print("Host: api.thingspeak.com\n");
+        clientThSp.print("Connection: close\n");
+        clientThSp.print("X-THINGSPEAKAPIKEY: " + (String)apiKey + "\n");
+        clientThSp.print("Content-Type: application/x-www-form-urlencoded\n");
+        clientThSp.print("Content-Length: ");
+        clientThSp.print(postStr.length());
+        clientThSp.print("\n\n");
+        clientThSp.print(postStr);
+        clientThSp.stop();
+        // Serial.println("Data uploaded to thingspeak!");
+    }
+    else {
+        Serial.println("ERROR: could not upload data to thingspeak!");
+        clientThSp.stop();
+    }
 }
 
 // // Handle HTML page calls
@@ -384,6 +387,14 @@ void handleCLientConnection() {
                     client.println("</tr>");
                     client.println("</table>");
 
+                    client.println("<p></p>");
+                    client.println("<p>autoMode: " + String(autoMode) + "</p>");
+                    client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
+                    client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
+                    client.println("<p>allowNtp: " + String(allowNtp) + "</p>");
+                    client.println("<p>allowPing: " + String(allowPing) + "</p>");
+                    client.println("<p>allowThSp: " + String(allowThSp) + "</p>");
+
                     client.println("</body></html>");
 
                     // The HTTP response ends with another blank line
@@ -406,11 +417,19 @@ void loop(){
     unsigned long currentTimeMillis = millis();
 
     // check current output pingStatus
-    outStateLED_1 = digitalRead(USB_1);
-    outStateLED_2 = digitalRead(USB_2);
+    // outStateLED_1 = digitalRead(USB_1);
+    // outStateLED_2 = digitalRead(USB_2);
 
     // pull the time
     if ((currentTimeMillis % ntpInterval == 0) && (allowNtp)) {
+        // Serial.println("Pulling NTP...");
+        pullNTPtime(false);
+        allowNtp = false;
+    }
+
+    // to try this one 
+    if(millis() > lastNTPtime + ntpInterval){
+        lastNTPtime = millis();
         // Serial.println("Pulling NTP...");
         pullNTPtime(false);
         allowNtp = false;
@@ -425,26 +444,26 @@ void loop(){
     // timeClient.getMinutes();
     // timeClient.getSeconds();
 
-    // status leds
-    if (outStateLED_1 && outStateLED_2) {
-        if (currentTimeMillis % 1000 == 0) {
-            digitalWrite(ESPLED, LOW);
-        }
-        else {
-            digitalWrite(ESPLED, HIGH);
-        }
-    }
-    else if (outStateLED_1 ^ outStateLED_2) {
-        if (currentTimeMillis % 200 == 0) {
-            digitalWrite(ESPLED, LOW);
-        }
-        else {
-            digitalWrite(ESPLED, HIGH);
-        }
-    }
-    else {
-        digitalWrite(ESPLED, HIGH);
-    }
+    // // status leds
+    // if (digitalRead(USB_1) && digitalRead(USB_2)) {
+    //     if (currentTimeMillis % 1000 == 0) {
+    //         digitalWrite(PCBLED, LOW);
+    //     }
+    //     else {
+    //         digitalWrite(PCBLED, HIGH);
+    //     }
+    // }
+    // else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
+    //     if (currentTimeMillis % 200 == 0) {
+    //         digitalWrite(PCBLED, LOW);
+    //     }
+    //     else {
+    //         digitalWrite(PCBLED, HIGH);
+    //     }
+    // }
+    // else {
+    //     digitalWrite(PCBLED, HIGH);
+    // }
 
     // auto mode handler
     if (autoMode) {
@@ -493,10 +512,17 @@ void loop(){
         allowPing = true;
     }
 
-    // update Thingspeak
-    if (currentTimeMillis % 60000) {
-        thingSpeakRequest();
-    }
+    // // update Thingspeak
+    // if ((currentTimeMillis % 60000) && allowThSp) {
+    //     // allowThSp = false;
+    //     thingSpeakRequest();
+    //     delay(1);
+    // }
+
+    // // debounce Thingspeak
+    // if ((currentTimeMillis % 60000 == 0) && (!allowThSp)) {
+    //     allowThSp = true;
+    // }
 
     // // handle HTTP connections
     // server.handleClient();
