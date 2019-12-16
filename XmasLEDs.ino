@@ -44,6 +44,10 @@ bool pingResult = false;
 
 unsigned long previousMillis = 0;
 unsigned long lastNTPtime = 0;
+unsigned long lastPingTime = 0;
+unsigned long lastThSpTime = 0;
+unsigned long lastESPledTime = 0;
+unsigned long lastPCBledTime = 0;
 
 // unsigned long currentTime = millis();
 unsigned long previousTime = 0; 
@@ -166,6 +170,8 @@ void thingSpeakRequest() {
         Serial.println("ERROR: could not upload data to thingspeak!");
         clientThSp.stop();
     }
+
+    lastThSpTime = millis();
 }
 
 // // Handle HTML page calls
@@ -238,6 +244,8 @@ void pullNTPtime(bool printData) {
         // Serial.println(timeClient.getSeconds());
         Serial.println(timeClient.getFormattedTime()); // format time like 23:05:00
     }
+
+    lastNTPtime = millis();
 }
 
 // Serial print data
@@ -249,6 +257,8 @@ void serialPrintAll() {
 }
 
 bool pingStatus() {
+    lastPingTime = millis();
+
     IPAddress ipOnePlus (192, 168, 1, 53);
     IPAddress ipXiaomi (192, 168, 1, 54);
 
@@ -275,7 +285,7 @@ void refreshToRoot() {
     client.print("</head>");
 }
 
-void handleCLientConnection() {
+void handleClientConnection() {
     String currentLine = "";                    // make a String to hold incoming data from the client
     unsigned long currentTime;
     currentTime = millis();
@@ -421,49 +431,53 @@ void loop(){
     // outStateLED_2 = digitalRead(USB_2);
 
     // pull the time
-    if ((currentTimeMillis % ntpInterval == 0) && (allowNtp)) {
+    // if ((millis() > lastNTPtime + ntpInterval) && allowNtp) {
+    if (millis() > lastNTPtime + ntpInterval) {
         // Serial.println("Pulling NTP...");
         pullNTPtime(false);
-        allowNtp = false;
+        // allowNtp = false;
     }
 
-    // to try this one 
-    if(millis() > lastNTPtime + ntpInterval){
-        lastNTPtime = millis();
-        // Serial.println("Pulling NTP...");
-        pullNTPtime(false);
-        allowNtp = false;
+    // // debounce NTP
+    // if ((millis() > lastNTPtime + 500) && (!allowNtp)) {
+    //     allowNtp = true;
+    // }
+
+    // debounce PING
+    // if ((millis() > lastPingTime + 60000) && (!allowPing)) {
+    if (millis() > lastPingTime + 60000) {
+        allowPing = true;
     }
 
-    // debounce NTP
-    if ((currentTimeMillis % 100 == 0) && (!allowNtp)) {
-        allowNtp = true;
+    // update Thingspeak
+    // if ((currentTimeMillis % 60000) && allowThSp) {
+    if (millis() > lastThSpTime + 65000) {
+        // allowThSp = false;
+        thingSpeakRequest();
+        delay(1);
     }
 
-    // timeClient.getHours()
-    // timeClient.getMinutes();
-    // timeClient.getSeconds();
+    // // debounce Thingspeak
+    // if ((currentTimeMillis % 60000 == 0) && (!allowThSp)) {
+    //     allowThSp = true;
+    // }
 
-    // // status leds
-    // if (digitalRead(USB_1) && digitalRead(USB_2)) {
-    //     if (currentTimeMillis % 1000 == 0) {
-    //         digitalWrite(PCBLED, LOW);
-    //     }
-    //     else {
-    //         digitalWrite(PCBLED, HIGH);
-    //     }
-    // }
-    // else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
-    //     if (currentTimeMillis % 200 == 0) {
-    //         digitalWrite(PCBLED, LOW);
-    //     }
-    //     else {
-    //         digitalWrite(PCBLED, HIGH);
-    //     }
-    // }
-    // else {
-    //     digitalWrite(PCBLED, HIGH);
-    // }
+    // status leds
+    if (digitalRead(USB_1) && digitalRead(USB_2)) {
+        if (millis() - lastPCBledTime >= 1000) {
+            digitalWrite(PCBLED, !digitalRead(PCBLED)); 
+            lastPCBledTime = millis();
+        }
+    }
+    else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
+        if (millis() - lastPCBledTime >= 200) {
+            digitalWrite(PCBLED, !digitalRead(PCBLED)); 
+            lastPCBledTime = millis();
+        }
+    }
+    else {
+        digitalWrite(PCBLED, HIGH);
+    }
 
     // auto mode handler
     if (autoMode) {
@@ -507,23 +521,6 @@ void loop(){
         }
     }
 
-    // debounce PING
-    if ((currentTimeMillis % 60000 == 0) && (!allowPing)) {
-        allowPing = true;
-    }
-
-    // // update Thingspeak
-    // if ((currentTimeMillis % 60000) && allowThSp) {
-    //     // allowThSp = false;
-    //     thingSpeakRequest();
-    //     delay(1);
-    // }
-
-    // // debounce Thingspeak
-    // if ((currentTimeMillis % 60000 == 0) && (!allowThSp)) {
-    //     allowThSp = true;
-    // }
-
     // // handle HTTP connections
     // server.handleClient();
 
@@ -532,7 +529,7 @@ void loop(){
     if (client) {                                   // If a new client connects,
         Serial.println("New Client.");              // print a message out in the serial port
         
-        handleCLientConnection();
+        handleClientConnection();
 
         // Clear the header variable
         httpHeader = "";
