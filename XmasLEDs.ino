@@ -348,7 +348,7 @@ void handleCLientConnection() {
                     // CSS to style the on/off buttons 
                     // Feel free to change the background-color and font-size attributes to fit your preferences
                     client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-                    client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;");
+                    client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 50px;");
                     client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
                     client.println(".button3 {background-color: #ff3300;}");
                     client.println(".button2 {background-color: #77878A;}</style></head>");
@@ -362,28 +362,28 @@ void handleCLientConnection() {
                     client.println("<tr>");
                     //if (outStateLED_1) {
                     if (digitalRead(USB_1) || digitalRead(USB_2)) {
-                        client.println("<p><a href=\"/off\"><button class=\"button\">ON</button></a></p>");
+                        client.println("<th colspan=\"2\"><p><a href=\"/off\"><button class=\"button\">ON</button></a></p></th>");
                     } else {
-                        client.println("<p><a href=\"/on\"><button class=\"button button2\">OFF</button></a></p>");
+                        client.println("<th colspan=\"2>\"<p><a href=\"/on\"><button class=\"button button2\">OFF</button></a></p></th>");
                     }
                     client.println("</tr>");
                     client.println("<tr>");
                     if (autoMode) {
-                        client.println("<p><a href=\"/auto\"><button class=\"button\">Auto Mode</button></a></p>");
+                        client.println("<td colspan=\"2\"><p><a href=\"/auto\"><button class=\"button\">Auto Mode</button></a></p></td>");
                     } else {
-                        client.println("<p><a href=\"/auto\"><button class=\"button button2\">Auto Mode</button></a></p>");
+                        client.println("<td colspan=\"2\"><p><a href=\"/auto\"><button class=\"button button2\">Auto Mode</button></a></p></td>");
                     }
                     client.println("</tr>");
-                    client.println("</table>");
+                    // client.println("</table>");
 
-                    client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
+                    // client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
                     client.println("<tr>");
-                    client.println("<th>");
+                    client.println("<td>");
                     client.println("<p><a href=\"/lumUp\"><button class=\"button\">+</button></a></p>");
-                    client.println("</th>");
-                    client.println("<th>");
+                    client.println("</td>");
+                    client.println("<td>");
                     client.println("<p><a href=\"/lumDow\"><button class=\"button\">-</button></a></p>");
-                    client.println("</th>");
+                    client.println("</td>");
                     client.println("</tr>");
                     client.println("</table>");
 
