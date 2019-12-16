@@ -46,6 +46,8 @@ unsigned long previousMillis = 0;
 unsigned long lastNTPtime = 0;
 unsigned long lastPingTime = 0;
 unsigned long lastThSpTime = 0;
+unsigned long lastESPledTime = 0;
+unsigned long lastPCBledTime = 0;
 
 // unsigned long currentTime = millis();
 unsigned long previousTime = 0; 
@@ -441,30 +443,41 @@ void loop(){
     //     allowNtp = true;
     // }
 
-    // timeClient.getHours()
-    // timeClient.getMinutes();
-    // timeClient.getSeconds();
+    // debounce PING
+    // if ((millis() > lastPingTime + 60000) && (!allowPing)) {
+    if (millis() > lastPingTime + 60000) {
+        allowPing = true;
+    }
 
-    // // status leds
-    // if (digitalRead(USB_1) && digitalRead(USB_2)) {
-    //     if (currentTimeMillis % 1000 == 0) {
-    //         digitalWrite(PCBLED, LOW);
-    //     }
-    //     else {
-    //         digitalWrite(PCBLED, HIGH);
-    //     }
+    // update Thingspeak
+    // if ((currentTimeMillis % 60000) && allowThSp) {
+    if (millis() > lastThSpTime + 65000) {
+        // allowThSp = false;
+        thingSpeakRequest();
+        delay(1);
+    }
+
+    // // debounce Thingspeak
+    // if ((currentTimeMillis % 60000 == 0) && (!allowThSp)) {
+    //     allowThSp = true;
     // }
-    // else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
-    //     if (currentTimeMillis % 200 == 0) {
-    //         digitalWrite(PCBLED, LOW);
-    //     }
-    //     else {
-    //         digitalWrite(PCBLED, HIGH);
-    //     }
-    // }
-    // else {
-    //     digitalWrite(PCBLED, HIGH);
-    // }
+
+    // status leds
+    if (digitalRead(USB_1) && digitalRead(USB_2)) {
+        if (millis() - lastPCBledTime >= 1000) {
+            digitalWrite(PCBLED, !digitalRead(PCBLED)); 
+            lastPCBledTime = millis();
+        }
+    }
+    else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
+        if (millis() - lastPCBledTime >= 200) {
+            digitalWrite(PCBLED, !digitalRead(PCBLED)); 
+            lastPCBledTime = millis();
+        }
+    }
+    else {
+        digitalWrite(PCBLED, HIGH);
+    }
 
     // auto mode handler
     if (autoMode) {
@@ -507,25 +520,6 @@ void loop(){
             // outStateLED_2 = false;
         }
     }
-
-    // debounce PING
-    // if ((millis() > lastPingTime + 60000) && (!allowPing)) {
-    if (millis() > lastPingTime + 60000) {
-        allowPing = true;
-    }
-
-    // update Thingspeak
-    // if ((currentTimeMillis % 60000) && allowThSp) {
-    if (millis() > lastThSpTime + 65000) {
-        // allowThSp = false;
-        thingSpeakRequest();
-        delay(1);
-    }
-
-    // // debounce Thingspeak
-    // if ((currentTimeMillis % 60000 == 0) && (!allowThSp)) {
-    //     allowThSp = true;
-    // }
 
     // // handle HTTP connections
     // server.handleClient();
