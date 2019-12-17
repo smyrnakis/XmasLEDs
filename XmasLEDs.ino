@@ -25,14 +25,12 @@ char otaAuthPin[] = OTA_AUTH_PIN;
 
 // ~~~~ Constants and variables
 String httpHeader;
-String serverReply;
 String localIPaddress;
 String formatedTime;
 
 bool manuallyOn = false;
 bool manuallyOff = false;
-bool outStateLED_1 = false;
-bool outStateLED_2 = false;
+bool lastCommandByUser = false;
 
 unsigned int luminosity = 768;
 
@@ -42,21 +40,20 @@ bool allowThSp = true;
 bool autoMode = true;
 bool pingResult = false;
 
-unsigned long previousMillis = 0;
 unsigned long lastNTPtime = 0;
 unsigned long lastPingTime = 0;
 unsigned long lastThSpTime = 0;
-unsigned long lastESPledTime = 0;
 unsigned long lastPCBledTime = 0;
+// unsigned long lastESPledTime = 0;
 
 // unsigned long currentTime = millis();
 unsigned long previousTime = 0; 
-const long timeoutTime = 2000;
+const long connectionKeepAlive = 2000;
 
 const int ntpInterval = 1000;
 const int secondInterval = 1000;
 
-// Metereological info for Geneva, CH
+// Meteorological info for Geneva, CH
 // Sunset time: object/daily/data/0/sunsetTime
 String darkSkyUri = "https://darksky.net/forecast/46.2073,6.1499/si12/en.json";
 
@@ -115,7 +112,6 @@ void setup() {
     delay(100);
 }
 
-// OTA code update
 void handleOTA() {
     // Port defaults to 8266
     // ArduinoOTA.setPort(8266);
@@ -145,10 +141,17 @@ void handleOTA() {
     ArduinoOTA.begin();
 }
 
-// Sending data to Thingspeak
+void serialPrintAll() {
+    Serial.println(timeClient.getFormattedTime());
+    Serial.print("USB 1: ");
+    Serial.print(String(digitalRead(USB_1)));
+    Serial.print("USB 2: ");
+    Serial.print(String(digitalRead(USB_2)));
+    Serial.println();
+}
+
 void thingSpeakRequest() {
-    if (clientThSp.connect(thinkSpeakAPIurl,80)) 
-    {
+    if (clientThSp.connect(thinkSpeakAPIurl,80)) {
         String postStr = apiKey;
         postStr +="&field6=";
         postStr += String(digitalRead(USB_1));
@@ -164,72 +167,15 @@ void thingSpeakRequest() {
         clientThSp.print("\n\n");
         clientThSp.print(postStr);
         clientThSp.stop();
-        // Serial.println("Data uploaded to thingspeak!");
+        Serial.println("Data uploaded to thingspeak!");
     }
     else {
         Serial.println("ERROR: could not upload data to thingspeak!");
         clientThSp.stop();
     }
-
     lastThSpTime = millis();
 }
 
-// // Handle HTML page calls
-// void handle_OnConnect() {
-//     digitalWrite(ESPLED, LOW);
-//     server.send(200, "text/html", HTMLpresentData());
-//     digitalWrite(ESPLED, HIGH);
-// }
-
-// HTML pages structure
-String HTMLpresentData(){
-    String ptr = "<!DOCTYPE html> <html>\n";
-    ptr +="<meta http-equiv=\"refresh\" content=\"5\" >\n";
-    ptr +="<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n";
-    ptr +="<title>RJD Monitor</title>\n";
-    ptr +="<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}\n";
-    ptr +="body{margin-top: 50px;} h1 {color: #444444;margin: 50px auto 30px;}\n";
-    ptr +="p {font-size: 24px;color: #444444;margin-bottom: 10px;}\n";
-    ptr +="</style>\n";
-    ptr +="</head>\n";
-    ptr +="<body>\n";
-    ptr +="<div id=\"webpage\">\n";
-    ptr +="<h1>RJD Monitor</h1>\n";
-    
-    ptr +="<p>Local IP: ";
-    ptr += (String)localIPaddress;
-    ptr +="</p>";
-
-    ptr += "<p>Timestamp: ";
-    ptr +=(String)formatedTime;
-    ptr += "</p>";
-
-    ptr +="</div>\n";
-    ptr +="</body>\n";
-    ptr +="</html>\n";
-    return ptr;
-}
-
-String HTMLnotFound(){
-    String ptr = "<!DOCTYPE html> <html>\n";
-    ptr +="<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n";
-    ptr +="<title>RJD Monitor</title>\n";
-    ptr +="<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: left;}\n";
-    ptr +="body{margin-top: 50px;} h1 {color: #444444;margin: 50px auto 30px;}\n";
-    ptr +="p {font-size: 24px;color: #444444;margin-bottom: 10px;}\n";
-    ptr +="</style>\n";
-    ptr +="</head>\n";
-    ptr +="<body>\n";
-    ptr +="<div id=\"webpage\">\n";
-    ptr +="<h1>You know this 404 thing ?</h1>\n";
-    ptr +="<p>What you asked can not be found... :'( </p>";
-    ptr +="</div>\n";
-    ptr +="</body>\n";
-    ptr +="</html>\n";
-    return ptr;
-}
-
-// Get the time
 void pullNTPtime(bool printData) {
     timeClient.update();
     formatedTime = timeClient.getFormattedTime();
@@ -244,16 +190,7 @@ void pullNTPtime(bool printData) {
         // Serial.println(timeClient.getSeconds());
         Serial.println(timeClient.getFormattedTime()); // format time like 23:05:00
     }
-
     lastNTPtime = millis();
-}
-
-// Serial print data
-void serialPrintAll() {
-    Serial.println(timeClient.getFormattedTime());
-    // Serial.print("Temperature: ");
-    // Serial.print(String(temperature));
-    Serial.println();
 }
 
 bool pingStatus() {
@@ -290,7 +227,7 @@ void handleClientConnection() {
     unsigned long currentTime;
     currentTime = millis();
     previousTime = currentTime;
-    while (client.connected() && currentTime - previousTime <= timeoutTime) { // loop while the client's connected
+    while (client.connected() && currentTime - previousTime <= connectionKeepAlive) { // loop while the client's connected
         currentTime = millis();         
         if (client.available()) {                   // if there's bytes to read from the client,
             char c = client.read();                 // read a byte, then
@@ -309,8 +246,6 @@ void handleClientConnection() {
 
                     if (httpHeader.indexOf("GET /on") >= 0) {
                         Serial.println("LEDs on");
-                        // outStateLED_1 = true;
-                        // outStateLED_2 = true;
                         digitalWrite(USB_1, HIGH);
                         digitalWrite(USB_2, HIGH);
                         manuallyOn = true;
@@ -319,8 +254,6 @@ void handleClientConnection() {
                     }
                     else if (httpHeader.indexOf("GET /off") >= 0) {
                         Serial.println("LEDs off");
-                        // outStateLED_1 = false;
-                        // outStateLED_2 = false;
                         digitalWrite(USB_1, LOW);
                         digitalWrite(USB_2, LOW);
                         manuallyOn = false;
@@ -370,7 +303,6 @@ void handleClientConnection() {
 
                     client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
                     client.println("<tr>");
-                    //if (outStateLED_1) {
                     if (digitalRead(USB_1) || digitalRead(USB_2)) {
                         client.println("<th colspan=\"2\"><p><a href=\"/off\"><button class=\"button\">ON</button></a></p></th>");
                     } else {
@@ -425,10 +357,6 @@ void loop(){
     ArduinoOTA.handle();
 
     unsigned long currentTimeMillis = millis();
-
-    // check current output pingStatus
-    // outStateLED_1 = digitalRead(USB_1);
-    // outStateLED_2 = digitalRead(USB_2);
 
     // pull the time
     // if ((millis() > lastNTPtime + ntpInterval) && allowNtp) {
@@ -488,22 +416,16 @@ void loop(){
             if (pingResult) {
                 digitalWrite(USB_1, HIGH);
                 digitalWrite(USB_2, HIGH);
-                // outStateLED_1 = true;
-                // outStateLED_2 = true;
             }
             else {
                 digitalWrite(USB_1, LOW);
                 digitalWrite(USB_2, LOW);
-                // outStateLED_1 = false;
-                // outStateLED_2 = false;
             }
         }
         else {
             if (!manuallyOn) {
                 digitalWrite(USB_1, LOW);
                 digitalWrite(USB_2, LOW);
-                // outStateLED_1 = false;
-                // outStateLED_2 = false;
             }
         }
     }
@@ -516,8 +438,6 @@ void loop(){
         if (!pingResult) {
             digitalWrite(USB_1, LOW);
             digitalWrite(USB_2, LOW);
-            // outStateLED_1 = false;
-            // outStateLED_2 = false;
         }
     }
 
