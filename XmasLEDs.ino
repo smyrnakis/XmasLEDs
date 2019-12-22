@@ -194,26 +194,20 @@ void pullNTPtime(bool printData) {
 }
 
 bool pingStatus() {
-    lastPingTime = millis();
-
     IPAddress ipOnePlus (192, 168, 1, 53);
     IPAddress ipXiaomi (192, 168, 1, 54);
 
     allowPing = false;
+    bool pingRet;
 
-    bool pingRet;    
     pingRet = Ping.ping(ipOnePlus);
 
-    if (pingRet) {
-        return true;
-    } else {
+    if (!pingRet) {
         pingRet = Ping.ping(ipXiaomi);
-
-        if (pingRet) {
-            return true;
-        }
     }
-    return false;
+
+    lastPingTime = millis();
+    return pingRet;
 }
 
 void refreshToRoot() {
