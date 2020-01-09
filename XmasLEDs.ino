@@ -194,8 +194,8 @@ void pullNTPtime(bool printData) {
 }
 
 bool pingStatus() {
-    IPAddress ipOnePlus (192, 168, 1, 53);
-    IPAddress ipXiaomi (192, 168, 1, 54);
+    IPAddress ipOnePlus (192, 168, 1, 5);
+    IPAddress ipXiaomi (192, 168, 1, 6);
 
     allowPing = false;
     bool pingRet;
