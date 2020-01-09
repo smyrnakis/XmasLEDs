@@ -34,7 +34,6 @@ bool lastCommandByUser = false;
 
 unsigned int luminosity = 768;
 
-bool allowNtp = true;
 bool allowPing = true;
 bool allowThSp = true;
 bool autoMode = true;
@@ -51,7 +50,8 @@ unsigned long previousTime = 0;
 const long connectionKeepAlive = 2000;
 
 const int ntpInterval = 1000;
-const int secondInterval = 1000;
+const int pingInterval = 60000;
+const int thingSpeakInterval = 65000;
 
 // Meteorological info for Geneva, CH
 // Sunset time: object/daily/data/0/sunsetTime
@@ -327,7 +327,7 @@ void handleClientConnection() {
                     client.println("<p>autoMode: " + String(autoMode) + "</p>");
                     client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
-                    client.println("<p>allowNtp: " + String(allowNtp) + "</p>");
+                    client.println("<p>lastNTPtime: " + String(lastNTPtime) + "</p>");
                     client.println("<p>allowPing: " + String(allowPing) + "</p>");
                     client.println("<p>allowThSp: " + String(allowThSp) + "</p>");
 
@@ -350,39 +350,24 @@ void handleClientConnection() {
 void loop(){
     ArduinoOTA.handle();
 
-    unsigned long currentTimeMillis = millis();
-
     // pull the time
-    // if ((millis() > lastNTPtime + ntpInterval) && allowNtp) {
     if (millis() > lastNTPtime + ntpInterval) {
         // Serial.println("Pulling NTP...");
         pullNTPtime(false);
-        // allowNtp = false;
     }
 
-    // // debounce NTP
-    // if ((millis() > lastNTPtime + 500) && (!allowNtp)) {
-    //     allowNtp = true;
-    // }
 
     // debounce PING
-    // if ((millis() > lastPingTime + 60000) && (!allowPing)) {
-    if (millis() > lastPingTime + 60000) {
+    if (millis() > lastPingTime + pingInterval) {
         allowPing = true;
     }
 
+
     // update Thingspeak
-    // if ((currentTimeMillis % 60000) && allowThSp) {
-    if (millis() > lastThSpTime + 65000) {
-        // allowThSp = false;
+    if (millis() > lastThSpTime + thingSpeakInterval) {
         thingSpeakRequest();
-        delay(1);
     }
 
-    // // debounce Thingspeak
-    // if ((currentTimeMillis % 60000 == 0) && (!allowThSp)) {
-    //     allowThSp = true;
-    // }
 
     // status leds
     if (digitalRead(USB_1) && digitalRead(USB_2)) {
@@ -400,6 +385,7 @@ void loop(){
     else {
         digitalWrite(PCBLED, HIGH);
     }
+
 
     // auto mode handler
     if (autoMode) {
