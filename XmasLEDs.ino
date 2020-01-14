@@ -28,6 +28,8 @@ String httpHeader;
 String localIPaddress;
 String formatedTime;
 
+bool showDebugs = true;
+
 bool manuallyOn = false;
 bool manuallyOff = false;
 bool lastCommandByUser = false;
@@ -38,24 +40,28 @@ bool allowPing = true;
 bool allowThSp = true;
 bool autoMode = true;
 bool pingResult = false;
+bool wifiAvailable = false;
+bool connectionLost = false;
 
 unsigned long lastNTPtime = 0;
 unsigned long lastPingTime = 0;
+unsigned long lastPingTimeExt = 0;
 unsigned long lastThSpTime = 0;
 unsigned long lastPCBledTime = 0;
-// unsigned long lastESPledTime = 0;
 
-// unsigned long currentTime = millis();
-unsigned long previousTime = 0; 
+unsigned long previousTime = 0;
+unsigned long connectionLostTime = 0;
 const long connectionKeepAlive = 2000;
 
-const int ntpInterval = 1000;
+const int ntpInterval = 2000;
 const int pingInterval = 60000;
-const int thingSpeakInterval = 65000;
+const int thingSpeakInterval = 90000;
+const int internetCheckInterval = 120000;
 
 // Meteorological info for Geneva, CH
 // Sunset time: object/daily/data/0/sunsetTime
 String darkSkyUri = "https://darksky.net/forecast/46.2073,6.1499/si12/en.json";
+unsigned int sunsetTime = 16;
 
 const char* thinkSpeakAPIurl = "api.thingspeak.com"; // "184.106.153.149" or api.thingspeak.com
 
@@ -89,27 +95,29 @@ void setup() {
     //wifiManager.resetSettings();
     wifiManager.setConfigPortalTimeout(180);  // 180 sec timeout for WiFi configuration
     wifiManager.autoConnect(defaultSSID, defaultPASS);
-
-    Serial.println("Connected to WiFi.");
-    Serial.print("IP: ");
-    localIPaddress = (WiFi.localIP()).toString();
-    Serial.println(localIPaddress);
     
     server.begin();
     Serial.println("HTTP server starter on port 80.");
 
     timeClient.begin();
 
-    // while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    //   Serial.println("Connection Failed! Rebooting...");
-    //   delay(5000);
-    //   ESP.restart();
-    // }
-
-    // handle OTA updates
     handleOTA();
-
     delay(100);
+
+    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+        wifiAvailable = false;
+        Serial.println("Failed to connect on WiFi network!");
+        Serial.println("Operating offline.");
+    }
+    else {
+        wifiAvailable = true;
+        Serial.println("Connected to WiFi.");
+        Serial.print("IP: ");
+        localIPaddress = (WiFi.localIP()).toString();
+        Serial.println(localIPaddress);
+    }
+
+    delay(500);
 }
 
 void handleOTA() {
@@ -177,6 +185,7 @@ void thingSpeakRequest() {
 }
 
 void pullNTPtime(bool printData) {
+    // Serial.println("Pulling NTP...");
     timeClient.update();
     formatedTime = timeClient.getFormattedTime();
 
@@ -193,21 +202,55 @@ void pullNTPtime(bool printData) {
     lastNTPtime = millis();
 }
 
-bool pingStatus() {
-    IPAddress ipOnePlus (192, 168, 1, 5);
-    IPAddress ipXiaomi (192, 168, 1, 6);
+bool pingStatus(bool pingExternal) {
 
-    allowPing = false;
-    bool pingRet;
+    bool pingRet; 
 
-    pingRet = Ping.ping(ipOnePlus);
+    if (pingExternal) {
+        IPAddress ipThingSpeak (184, 106, 153, 149);
+        IPAddress ipGoogle (8, 8, 8, 8);
 
-    if (!pingRet) {
-        pingRet = Ping.ping(ipXiaomi);
+        pingRet = Ping.ping(ipThingSpeak);
+
+        if (!pingRet) {
+            pingRet = Ping.ping(ipGoogle);
+        }
+
+        lastPingTimeExt = millis();
+        return pingRet;
+    } else {
+        IPAddress ipOnePlus (192, 168, 1, 5);
+        IPAddress ipXiaomi (192, 168, 1, 6);
+
+        allowPing = false;
+
+        pingRet = Ping.ping(ipOnePlus);
+
+        if (!pingRet) {
+            pingRet = Ping.ping(ipXiaomi);
+        }
+
+        lastPingTime = millis();
+        return pingRet;
     }
+}
 
-    lastPingTime = millis();
-    return pingRet;
+void ledHandler() {
+    if (digitalRead(USB_1) && digitalRead(USB_2)) {
+        if (millis() - lastPCBledTime >= 1000) {
+            digitalWrite(PCBLED, !digitalRead(PCBLED)); 
+            lastPCBledTime = millis();
+        }
+    }
+    else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
+        if (millis() - lastPCBledTime >= 200) {
+            digitalWrite(PCBLED, !digitalRead(PCBLED)); 
+            lastPCBledTime = millis();
+        }
+    }
+    else {
+        digitalWrite(PCBLED, HIGH);
+    }
 }
 
 void refreshToRoot() {
@@ -329,7 +372,10 @@ void handleClientConnection() {
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
                     client.println("<p>lastNTPtime: " + String(lastNTPtime) + "</p>");
                     client.println("<p>allowPing: " + String(allowPing) + "</p>");
-                    client.println("<p>allowThSp: " + String(allowThSp) + "</p>");
+                    client.println("<p>pingResult: " + String(pingResult) + "</p>");
+                    client.println("<p>connectionLost: " + String(connectionLost) + "</p>");
+                    client.println("<p>connectionLostTime: " + String(connectionLostTime) + "</p>");
+                    client.println("<p>wifiAvailable: " + String(wifiAvailable) + "</p>");
 
                     client.println("</body></html>");
 
@@ -351,8 +397,7 @@ void loop(){
     ArduinoOTA.handle();
 
     // pull the time
-    if (millis() > lastNTPtime + ntpInterval) {
-        // Serial.println("Pulling NTP...");
+    if ((millis() > lastNTPtime + ntpInterval) && wifiAvailable) {
         pullNTPtime(false);
     }
 
@@ -364,35 +409,22 @@ void loop(){
 
 
     // update Thingspeak
-    if (millis() > lastThSpTime + thingSpeakInterval) {
+    if ((millis() > lastThSpTime + thingSpeakInterval) && wifiAvailable) {
         thingSpeakRequest();
     }
 
 
     // status leds
-    if (digitalRead(USB_1) && digitalRead(USB_2)) {
-        if (millis() - lastPCBledTime >= 1000) {
-            digitalWrite(PCBLED, !digitalRead(PCBLED)); 
-            lastPCBledTime = millis();
-        }
-    }
-    else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
-        if (millis() - lastPCBledTime >= 200) {
-            digitalWrite(PCBLED, !digitalRead(PCBLED)); 
-            lastPCBledTime = millis();
-        }
-    }
-    else {
-        digitalWrite(PCBLED, HIGH);
-    }
+    ledHandler();
 
 
     // auto mode handler
     if (autoMode) {
-        if (timeClient.getHours() > 17) {
+        if (timeClient.getHours() > sunsetTime) {
             if (allowPing) {
-                pingResult = pingStatus();
+                pingResult = pingStatus(false);
             }
+
             if (pingResult) {
                 digitalWrite(USB_1, HIGH);
                 digitalWrite(USB_2, HIGH);
@@ -413,7 +445,7 @@ void loop(){
     // auto turn off if not at home
     if (manuallyOn) {
         if (allowPing) {
-            pingResult = pingStatus();
+            pingResult = pingStatus(false);
         }
         if (!pingResult) {
             digitalWrite(USB_1, LOW);
@@ -421,21 +453,49 @@ void loop(){
         }
     }
 
-    // // handle HTTP connections
-    // server.handleClient();
-
     client = server.available();                    // Listen for incoming clients
 
     if (client) {                                   // If a new client connects,
-        Serial.println("New Client.");              // print a message out in the serial port
+        Serial.println("New client connection.");   // print a message out in the serial port
         
         handleClientConnection();
-
         // Clear the header variable
         httpHeader = "";
         // Close the connection
         client.stop();
         Serial.println("Client disconnected.");
         Serial.println("");
+    }
+
+    // check Internet connectivity
+    if (millis() > lastPingTimeExt + internetCheckInterval) {
+        pingResult = pingStatus(true);
+        Serial.print("\r\nPing status: ");
+        Serial.println((String)pingResult);
+        Serial.println("\r\n");
+
+        connectionLost = !pingResult;
+
+        if ((!pingResult) && (!connectionLost)) {
+            Serial.println("\r\nWARNING: no Internet connectivity!\r\n");
+            connectionLostTime = millis();
+            connectionLost = true;
+        }
+    }
+
+    // reboot if no Internet for 5 minutes
+    if ((millis() > connectionLostTime + 300000) && connectionLost) {
+        if (!pingResult) {
+            Serial.println("No Internet connection since 5 minutes. Rebooting in 5 sec...");
+            delay(5000);
+            ESP.restart();
+        }
+    }
+
+    // reboot device if no WiFi for 2 minutes (1h : 3600000)
+    if ((millis() > 120000) && (!wifiAvailable)) {
+        Serial.println("No WiFi connection since 2 minutes. Rebooting in 5 sec...");
+        delay(5000);
+        ESP.restart();
     }
 }
