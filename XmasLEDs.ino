@@ -243,7 +243,13 @@ void ledHandler() {
         }
     }
     else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
-        if (millis() - lastPCBledTime >= 200) {
+        if (millis() - lastPCBledTime >= 500) {
+            digitalWrite(PCBLED, !digitalRead(PCBLED));
+            lastPCBledTime = millis();
+        }
+    }
+    else if (connectionLost || !wifiAvailable) {
+        if (millis() - lastPCBledTime >= 100) {
             digitalWrite(PCBLED, !digitalRead(PCBLED)); 
             lastPCBledTime = millis();
         }
