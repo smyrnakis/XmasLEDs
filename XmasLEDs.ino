@@ -34,7 +34,7 @@ bool manuallyOn = false;
 bool manuallyOff = false;
 bool lastCommandByUser = false;
 
-unsigned int luminosity = 768;
+unsigned int luminosity = 1024;
 
 bool allowPing = true;
 bool allowThSp = true;
@@ -373,16 +373,17 @@ void handleClientConnection() {
                     client.println("</table>");
 
                     client.println("<p></p>");
+                    client.println("<p>current millis: " + String(millis()) + "</p>");
                     client.println("<p>autoMode: " + String(autoMode) + "</p>");
                     client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
-                    client.println("<p>current millis: " + String(millis()) + "</p>");
-                    client.println("<p>lastPingTimeExt: " + String(lastPingTimeExt) + "</p>");
-                    client.println("<p>allowPing: " + String(allowPing) + "</p>");
-                    client.println("<p>pingResult: " + String(pingResult) + "</p>");
+                    client.println("<p>luminosity: " + String(luminosity) + "</p>");
+                    client.println("<p>wifiAvailable: " + String(wifiAvailable) + "</p>");
                     client.println("<p>connectionLost: " + String(connectionLost) + "</p>");
                     client.println("<p>connectionLostTime: " + String(connectionLostTime) + "</p>");
-                    client.println("<p>wifiAvailable: " + String(wifiAvailable) + "</p>");
+                    client.println("<p>allowPing: " + String(allowPing) + "</p>");
+                    client.println("<p>pingResult: " + String(pingResult) + "</p>");
+                    client.println("<p>lastPingTimeExt: " + String(lastPingTimeExt) + "</p>");
 
                     client.println("</body></html>");
 
