@@ -370,7 +370,8 @@ void handleClientConnection() {
                     client.println("<p>autoMode: " + String(autoMode) + "</p>");
                     client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
-                    client.println("<p>lastNTPtime: " + String(lastNTPtime) + "</p>");
+                    client.println("<p>current millis: " + String(millis()) + "</p>");
+                    client.println("<p>lastPingTimeExt: " + String(lastPingTimeExt) + "</p>");
                     client.println("<p>allowPing: " + String(allowPing) + "</p>");
                     client.println("<p>pingResult: " + String(pingResult) + "</p>");
                     client.println("<p>connectionLost: " + String(connectionLost) + "</p>");
