@@ -404,6 +404,38 @@ void handleClientConnection() {
 void loop(){
     ArduinoOTA.handle();
 
+    // check Internet connectivity
+    if (millis() > lastPingTimeExt + internetCheckInterval) {
+        pingResult = pingStatus(true);
+        Serial.print("\r\nPing status: ");
+        Serial.println((String)pingResult);
+        Serial.println("\r\n");
+
+        connectionLost = !pingResult;
+
+        if ((!pingResult) && (!connectionLost)) {
+            Serial.println("\r\nWARNING: no Internet connectivity!\r\n");
+            connectionLostTime = millis();
+            connectionLost = true;
+        }
+    }
+
+    // reboot if no Internet for 5 minutes
+    if ((millis() > connectionLostTime + 300000) && connectionLost) {
+        if (!pingResult) {
+            Serial.println("No Internet connection since 5 minutes. Rebooting in 5 sec...");
+            delay(5000);
+            ESP.restart();
+        }
+    }
+
+    // reboot device if no WiFi for 5 minutes (3' wifiManager timeout + 2') (1h : 3600000)
+    if ((millis() > 300000) && (!wifiAvailable)) {
+        Serial.println("No WiFi connection since 2 minutes. Rebooting in 5 sec...");
+        delay(5000);
+        ESP.restart();
+    }
+
     // pull the time
     if ((millis() > lastNTPtime + ntpInterval) && wifiAvailable) {
         pullNTPtime(false);
@@ -473,37 +505,5 @@ void loop(){
         client.stop();
         Serial.println("Client disconnected.");
         Serial.println("");
-    }
-
-    // check Internet connectivity
-    if (millis() > lastPingTimeExt + internetCheckInterval) {
-        pingResult = pingStatus(true);
-        Serial.print("\r\nPing status: ");
-        Serial.println((String)pingResult);
-        Serial.println("\r\n");
-
-        connectionLost = !pingResult;
-
-        if ((!pingResult) && (!connectionLost)) {
-            Serial.println("\r\nWARNING: no Internet connectivity!\r\n");
-            connectionLostTime = millis();
-            connectionLost = true;
-        }
-    }
-
-    // reboot if no Internet for 5 minutes
-    if ((millis() > connectionLostTime + 300000) && connectionLost) {
-        if (!pingResult) {
-            Serial.println("No Internet connection since 5 minutes. Rebooting in 5 sec...");
-            delay(5000);
-            ESP.restart();
-        }
-    }
-
-    // reboot device if no WiFi for 2 minutes (1h : 3600000)
-    if ((millis() > 120000) && (!wifiAvailable)) {
-        Serial.println("No WiFi connection since 2 minutes. Rebooting in 5 sec...");
-        delay(5000);
-        ESP.restart();
     }
 }
