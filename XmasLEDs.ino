@@ -38,6 +38,7 @@ unsigned int luminosity = 1024;
 
 bool allowPing = true;
 bool allowThSp = true;
+bool autoOff = true;
 bool autoMode = true;
 bool pingResult = false;
 bool wifiAvailable = false;
@@ -49,6 +50,7 @@ unsigned long lastPingTimeExt = 0;
 unsigned long lastThSpTime = 0;
 unsigned long lastPCBledTime = 0;
 
+unsigned int snoozeMinutes = 0;
 unsigned long previousTime = 0;
 unsigned long connectionLostTime = 0;
 const long connectionKeepAlive = 2000;
@@ -289,18 +291,40 @@ void handleClientConnection() {
 
                     if (httpHeader.indexOf("GET /on") >= 0) {
                         Serial.println("LEDs on");
-                        digitalWrite(USB_1, HIGH);
-                        digitalWrite(USB_2, HIGH);
+                        // digitalWrite(USB_1, HIGH);
+                        // digitalWrite(USB_2, HIGH);
                         manuallyOn = true;
                         manuallyOff = false;
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /off") >= 0) {
                         Serial.println("LEDs off");
-                        digitalWrite(USB_1, LOW);
-                        digitalWrite(USB_2, LOW);
+                        // digitalWrite(USB_1, LOW);
+                        // digitalWrite(USB_2, LOW);
                         manuallyOn = false;
                         manuallyOff = true;
+                        refreshToRoot();
+                    }
+                    else if (httpHeader.indexOf("GET /snooze") >= 0) {
+                        switch (snoozeMinutes) {
+                            case 0:
+                                snoozeMinutes = 5;
+                                break;
+                            case 5:
+                                snoozeMinutes = 10;
+                                break;
+                            case 10:
+                                snoozeMinutes = 30;
+                                break;
+                            case 30:
+                                snoozeMinutes = 60;
+                                break;
+                            case 60:
+                                snoozeMinutes = 0;
+                                break;
+                        default:
+                            break;
+                        }
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /lumUp") >= 0) {
@@ -323,6 +347,13 @@ void handleClientConnection() {
                     }
                     else if (httpHeader.indexOf("GET /auto") >= 0) {
                         autoMode = !autoMode;
+                        if (autoMode) {
+                            autoOff = true;
+                        }
+                        refreshToRoot();
+                    }
+                    else if (httpHeader.indexOf("GET /autoOff") >= 0) {
+                        autoOff = !autoOff;
                         refreshToRoot();
                     }
 
@@ -347,17 +378,42 @@ void handleClientConnection() {
                     client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
                     client.println("<tr>");
                     if (digitalRead(USB_1) || digitalRead(USB_2)) {
-                        client.println("<th colspan=\"2\"><p><a href=\"/off\"><button class=\"button\">ON</button></a></p></th>");
+                        client.println("<th><p><a href=\"/off\"><button class=\"button\">ON</button></a></p></th>");
                     } else {
-                        client.println("<th colspan=\"2>\"<p><a href=\"/on\"><button class=\"button button2\">OFF</button></a></p></th>");
+                        client.println("<th><p><a href=\"/on\"><button class=\"button button2\">OFF</button></a></p></th>");
+                    }
+                    switch (snoozeMinutes) {
+                        case 0:
+                            client.println("<th><p><a href=\"/snooze\"><button class=\"button button2\">SNOOZE OFF</button></a></p></th>");
+                            break;
+                        case 5:
+                            client.println("<th><p><a href=\"/snooze\"><button class=\"button\">SNOOZE 5'</button></a></p></th>");
+                            break;
+                        case 10:
+                            client.println("<th><p><a href=\"/snooze\"><button class=\"button\">SNOOZE 10'</button></a></p></th>");
+                            break;
+                        case 30:
+                            client.println("<th><p><a href=\"/snooze\"><button class=\"button\">SNOOZE 30'</button></a></p></th>");
+                            break;
+                        case 60:
+                            client.println("<th><p><a href=\"/snooze\"><button class=\"button\">SNOOZE 60'</button></a></p></th>");
+                            break;
+                    default:
+                        break;
                     }
                     client.println("</tr>");
                     client.println("<tr>");
                     if (autoMode) {
-                        client.println("<td colspan=\"2\"><p><a href=\"/auto\"><button class=\"button\">Auto Mode</button></a></p></td>");
+                        client.println("<td><p><a href=\"/auto\"><button class=\"button\">Auto Mode</button></a></p></td>");
                     } else {
-                        client.println("<td colspan=\"2\"><p><a href=\"/auto\"><button class=\"button button2\">Auto Mode</button></a></p></td>");
+                        client.println("<td><p><a href=\"/auto\"><button class=\"button button2\">Auto Mode</button></a></p></td>");
                     }
+                    if (autoOff) {
+                        client.println("<td><p><a href=\"/autoOff\"><button class=\"button\">Auto OFF</button></a></p></td>");
+                    } else {
+                        client.println("<td><p><a href=\"/autoOff\"><button class=\"button button2\">Auto OFF</button></a></p></td>");
+                    }
+
                     client.println("</tr>");
                     // client.println("</table>");
 
@@ -375,6 +431,7 @@ void handleClientConnection() {
                     client.println("<p></p>");
                     client.println("<p>current millis: " + String(millis()) + "</p>");
                     client.println("<p>autoMode: " + String(autoMode) + "</p>");
+                    client.println("<p>autoOff: " + String(autoOff) + "</p>");
                     client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
                     client.println("<p>luminosity: " + String(luminosity) + "</p>");
@@ -457,7 +514,6 @@ void loop(){
     // status leds
     ledHandler();
 
-
     // auto mode handler
     if (autoMode) {
         if (timeClient.getHours() > sunsetTime) {
@@ -484,14 +540,33 @@ void loop(){
 
     // auto turn off if not at home
     if (manuallyOn) {
-        if (allowPing) {
-            pingResult = pingStatus(false);
+        digitalWrite(USB_1, HIGH);
+        digitalWrite(USB_2, HIGH);
+
+        if (timeClient.getHours() > sunsetTime) {
+            autoMode = true;
         }
-        if (!pingResult) {
-            digitalWrite(USB_1, LOW);
-            digitalWrite(USB_2, LOW);
+
+        if (autoOff) {
+            if (allowPing) {
+                pingResult = pingStatus(false);
+            }
+            if (!pingResult) {
+                digitalWrite(USB_1, LOW);
+                digitalWrite(USB_2, LOW);
+
+                manuallyOn = false;
+            }
         }
     }
+
+    if (manuallyOff) {
+        digitalWrite(USB_1, LOW);
+        digitalWrite(USB_2, LOW);
+
+        autoMode = false;
+    }
+
 
     client = server.available();                    // Listen for incoming clients
 
