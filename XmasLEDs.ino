@@ -304,8 +304,8 @@ void handleClientConnection() {
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /lumUp") >= 0) {
-                        if (luminosity < 1024) {
-                            luminosity++;
+                        if (luminosity < 1014) {
+                            luminosity += 10;
                             Serial.print("Luminosity up (");
                             Serial.print(luminosity);
                             Serial.println(")");
@@ -313,8 +313,8 @@ void handleClientConnection() {
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /lumDow") >= 0) {
-                        if (luminosity > 0) {
-                            luminosity--; 
+                        if (luminosity > 10) {
+                            luminosity -= 10; 
                             Serial.print("Luminosity down (");
                             Serial.print(luminosity);
                             Serial.println(")");
@@ -378,11 +378,11 @@ void handleClientConnection() {
                     client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
                     client.println("<p>luminosity: " + String(luminosity) + "</p>");
+                    client.println("<p>allowPing: " + String(allowPing) + "</p>");
+                    client.println("<p>pingResult: " + String(pingResult) + "</p>");
                     client.println("<p>wifiAvailable: " + String(wifiAvailable) + "</p>");
                     client.println("<p>connectionLost: " + String(connectionLost) + "</p>");
                     client.println("<p>connectionLostTime: " + String(connectionLostTime) + "</p>");
-                    client.println("<p>allowPing: " + String(allowPing) + "</p>");
-                    client.println("<p>pingResult: " + String(pingResult) + "</p>");
                     client.println("<p>lastPingTimeExt: " + String(lastPingTimeExt) + "</p>");
 
                     client.println("</body></html>");
