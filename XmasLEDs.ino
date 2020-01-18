@@ -149,15 +149,6 @@ void handleOTA() {
     ArduinoOTA.begin();
 }
 
-void serialPrintAll() {
-    Serial.println(timeClient.getFormattedTime());
-    Serial.print("USB 1: ");
-    Serial.print(String(digitalRead(USB_1)));
-    Serial.print("USB 2: ");
-    Serial.print(String(digitalRead(USB_2)));
-    Serial.println();
-}
-
 void thingSpeakRequest() {
     if (clientThSp.connect(thinkSpeakAPIurl,80)) {
         String postStr = apiKey;
@@ -237,10 +228,10 @@ bool pingStatus(bool pingExternal) {
 
 void ledHandler() {
     if (digitalRead(USB_1) && digitalRead(USB_2)) {
-        if (millis() - lastPCBledTime >= 1000) {
-            digitalWrite(PCBLED, !digitalRead(PCBLED)); 
-            lastPCBledTime = millis();
-        }
+        // if (millis() - lastPCBledTime >= 1000) {
+        //     digitalWrite(PCBLED, !digitalRead(PCBLED)); 
+        //     lastPCBledTime = millis();
+        // }
     }
     else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
         if (millis() - lastPCBledTime >= 500) {
