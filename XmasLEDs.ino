@@ -32,7 +32,7 @@ bool showDebugs = true;
 
 bool manuallyOn = false;
 bool manuallyOff = false;
-bool lastCommandByUser = false;
+bool outputState = false;
 
 unsigned int luminosity = 1024;
 
@@ -41,6 +41,7 @@ bool allowThSp = true;
 bool autoOff = true;
 bool autoMode = true;
 bool pingResult = false;
+bool extPingResult = false;
 bool wifiAvailable = false;
 bool connectionLost = false;
 
@@ -349,6 +350,8 @@ void handleClientConnection() {
                         autoMode = !autoMode;
                         if (autoMode) {
                             autoOff = true;
+                            manuallyOn = false;
+                            manuallyOff = false;
                         }
                         refreshToRoot();
                     }
@@ -435,6 +438,7 @@ void handleClientConnection() {
                     client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
                     client.println("<p>luminosity: " + String(luminosity) + "</p>");
+                    client.println("<p>snoozeMinutes: " + String(snoozeMinutes) + "</p>");
                     client.println("<p>wifiAvailable: " + String(wifiAvailable) + "</p>");
                     client.println("<p>connectionLost: " + String(connectionLost) + "</p>");
                     client.println("<p>connectionLostTime: " + String(connectionLostTime) + "</p>");
@@ -463,14 +467,14 @@ void loop(){
 
     // check Internet connectivity
     if (millis() > lastPingTimeExt + internetCheckInterval) {
-        pingResult = pingStatus(true);
+        extPingResult = pingStatus(true);
         Serial.print("\r\nPing status: ");
-        Serial.println((String)pingResult);
+        Serial.println((String)extPingResult);
         Serial.println("\r\n");
 
-        connectionLost = !pingResult;
+        connectionLost = !extPingResult;
 
-        if ((!pingResult) && (!connectionLost)) {
+        if ((!extPingResult) && (!connectionLost)) {
             Serial.println("\r\nWARNING: no Internet connectivity!\r\n");
             connectionLostTime = millis();
             connectionLost = true;
@@ -479,7 +483,7 @@ void loop(){
 
     // reboot if no Internet for 5 minutes
     if ((millis() > connectionLostTime + 300000) && connectionLost) {
-        if (!pingResult) {
+        if (!extPingResult) {
             Serial.println("No Internet connection since 5 minutes. Rebooting in 5 sec...");
             delay(5000);
             ESP.restart();
@@ -514,6 +518,7 @@ void loop(){
     // status leds
     ledHandler();
 
+
     // auto mode handler
     if (autoMode) {
         if (timeClient.getHours() > sunsetTime) {
@@ -522,54 +527,61 @@ void loop(){
             }
 
             if (pingResult) {
-                digitalWrite(USB_1, HIGH);
-                digitalWrite(USB_2, HIGH);
+                outputState = true;
             }
             else {
-                digitalWrite(USB_1, LOW);
-                digitalWrite(USB_2, LOW);
+                outputState = false;
             }
         }
         else {
             if (!manuallyOn) {
-                digitalWrite(USB_1, LOW);
-                digitalWrite(USB_2, LOW);
+                outputState= false;
             }
+        }
+    }
+
+    if (outputState) {
+        if (manuallyOff) {
+            outputState = false;
         }
     }
 
     // auto turn off if not at home
     if (manuallyOn) {
-        digitalWrite(USB_1, HIGH);
-        digitalWrite(USB_2, HIGH);
+        outputState = true;
 
-        if (timeClient.getHours() > sunsetTime) {
-            autoMode = true;
-        }
+        // if (timeClient.getHours() > sunsetTime) {
+        //     autoMode = true;
+        // }
 
         if (autoOff) {
             if (allowPing) {
                 pingResult = pingStatus(false);
             }
             if (!pingResult) {
-                digitalWrite(USB_1, LOW);
-                digitalWrite(USB_2, LOW);
-
+                outputState = false;
                 manuallyOn = false;
             }
         }
     }
 
     if (manuallyOff) {
-        digitalWrite(USB_1, LOW);
-        digitalWrite(USB_2, LOW);
-
+        outputState = false;
         autoMode = false;
     }
 
 
-    client = server.available();                    // Listen for incoming clients
+    // reflect output changes
+    if (outputState) {
+        digitalWrite(USB_1, HIGH);
+        digitalWrite(USB_2, HIGH);
+    } else {
+        digitalWrite(USB_1, LOW);
+        digitalWrite(USB_2, LOW);
+    }
 
+
+    client = server.available();                    // Listen for incoming clients
     if (client) {                                   // If a new client connects,
         Serial.println("New client connection.");   // print a message out in the serial port
         
