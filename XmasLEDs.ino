@@ -52,7 +52,8 @@ unsigned long lastThSpTime = 0;
 unsigned long lastPCBledTime = 0;
 
 unsigned int snoozeMinutes = 0;
-unsigned long previousTime = 0;
+unsigned long snoozeTime = 0;
+unsigned long connectionTime = 0;
 unsigned long connectionLostTime = 0;
 const long connectionKeepAlive = 2000;
 
@@ -263,8 +264,8 @@ void handleClientConnection() {
     String currentLine = "";                    // make a String to hold incoming data from the client
     unsigned long currentTime;
     currentTime = millis();
-    previousTime = currentTime;
-    while (client.connected() && currentTime - previousTime <= connectionKeepAlive) { // loop while the client's connected
+    connectionTime = currentTime;
+    while (client.connected() && currentTime - connectionTime <= connectionKeepAlive) { // loop while the client's connected
         currentTime = millis();         
         if (client.available()) {                   // if there's bytes to read from the client,
             char c = client.read();                 // read a byte, then
@@ -316,6 +317,9 @@ void handleClientConnection() {
                                 break;
                         default:
                             break;
+                        }
+                        if (snoozeMinutes) {
+                            snoozeTime = millis();
                         }
                         refreshToRoot();
                     }
@@ -554,6 +558,14 @@ void loop(){
                 outputState = false;
                 manuallyOn = false;
             }
+        }
+    }
+
+    if (snoozeMinutes) {
+        if (millis() > (snoozeTime + (snoozeMinutes * 60000))) {
+            outputState = false;
+            manuallyOn = false;
+            snoozeMinutes = 0;
         }
     }
 
