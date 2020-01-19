@@ -537,6 +537,7 @@ void loop(){
             if (!manuallyOn) {
                 outputState= false;
             }
+            manuallyOff = false;
         }
     }
 
