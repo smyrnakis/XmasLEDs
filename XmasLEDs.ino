@@ -40,6 +40,7 @@ bool allowPing = true;
 bool allowThSp = true;
 bool autoOff = true;
 bool autoMode = true;
+bool lastPing = false;
 bool pingResult = false;
 bool extPingResult = false;
 bool wifiAvailable = false;
@@ -58,7 +59,7 @@ unsigned long connectionLostTime = 0;
 const long connectionKeepAlive = 2000;
 
 const int ntpInterval = 2000;
-const int pingInterval = 60000;
+const int pingInterval = 300000;
 const int thingSpeakInterval = 90000;
 const int internetCheckInterval = 120000;
 
@@ -199,7 +200,7 @@ void pullNTPtime(bool printData) {
 
 bool pingStatus(bool pingExternal) {
 
-    bool pingRet; 
+    bool pingRet;
 
     if (pingExternal) {
         IPAddress ipThingSpeak (184, 106, 153, 149);
@@ -212,22 +213,42 @@ bool pingStatus(bool pingExternal) {
         }
 
         lastPingTimeExt = millis();
-        return pingRet;
     } else {
         IPAddress ipOnePlus (192, 168, 1, 5);
         IPAddress ipXiaomi (192, 168, 1, 6);
 
         allowPing = false;
 
-        pingRet = Ping.ping(ipOnePlus);
-
-        if (!pingRet) {
-            pingRet = Ping.ping(ipXiaomi);
+        if (Ping.ping(ipOnePlus)) {
+            lastPing = true;
+            pingRet = true;
+        } else {
+            if (lastPing) {
+                lastPing = false;
+                pingRet = true;
+            } else {
+                lastPing = false;
+                pingRet = false;
+            }
         }
 
+        if (!pingRet) {
+            if (Ping.ping(ipXiaomi)) {
+                lastPing = true;
+                pingRet = true;
+            } else {
+                if (lastPing) {
+                    lastPing = false;
+                    pingRet = true;
+                } else {
+                    lastPing = false;
+                    pingRet = false;
+                }
+            }
+        }
         lastPingTime = millis();
-        return pingRet;
     }
+    return pingRet;
 }
 
 void ledHandler() {
@@ -435,6 +456,7 @@ void handleClientConnection() {
                     client.println("<p>snoozeMinutes: " + String(snoozeMinutes) + "</p>");
                     client.println("<p>luminosity: " + String(luminosity) + "</p>");
                     client.println("<p>allowPing: " + String(allowPing) + "</p>");
+                    client.println("<p>lastPing: " + String(lastPing) + "</p>");
                     client.println("<p>pingResult: " + String(pingResult) + "</p>");
                     client.println("<p>wifiAvailable: " + String(wifiAvailable) + "</p>");
                     client.println("<p>connectionLost: " + String(connectionLost) + "</p>");
