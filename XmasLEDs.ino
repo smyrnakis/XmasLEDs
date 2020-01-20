@@ -33,6 +33,8 @@ bool showDebugs = true;
 bool manuallyOn = false;
 bool manuallyOff = false;
 bool outputState = false;
+bool outStateBefore = false;
+bool outChangeReport = false;
 
 unsigned int luminosity = 1024;
 
@@ -59,7 +61,7 @@ const long connectionKeepAlive = 2000;
 
 const int ntpInterval = 2000;
 const int pingInterval = 60000;
-const int thingSpeakInterval = 90000;
+const int thingSpeakInterval = 300000;
 const int internetCheckInterval = 120000;
 
 // Meteorological info for Geneva, CH
@@ -506,8 +508,9 @@ void loop(){
 
 
     // update Thingspeak
-    if ((millis() > lastThSpTime + thingSpeakInterval) && wifiAvailable) {
+    if (((millis() > lastThSpTime + thingSpeakInterval) || outChangeReport) && wifiAvailable) {
         thingSpeakRequest();
+        outChangeReport = false;
     }
 
 
@@ -575,6 +578,10 @@ void loop(){
         autoMode = false;
     }
 
+    if (outStateBefore != outputState) {
+        outChangeReport = true;
+        outStateBefore = outputState;
+    }
 
     // reflect output changes
     if (outputState) {
