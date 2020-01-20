@@ -296,6 +296,7 @@ void handleClientConnection() {
                         // digitalWrite(USB_2, LOW);
                         manuallyOn = false;
                         manuallyOff = true;
+                        snoozeMinutes = 0;
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /snooze") >= 0) {
@@ -350,7 +351,7 @@ void handleClientConnection() {
                         }
                         refreshToRoot();
                     }
-                    else if (httpHeader.indexOf("GET /autoOff") >= 0) {
+                    else if (httpHeader.indexOf("GET /offAuto") >= 0) {
                         autoOff = !autoOff;
                         refreshToRoot();
                     }
@@ -407,9 +408,9 @@ void handleClientConnection() {
                         client.println("<td><p><a href=\"/auto\"><button class=\"button button2\">Auto Mode</button></a></p></td>");
                     }
                     if (autoOff) {
-                        client.println("<td><p><a href=\"/autoOff\"><button class=\"button\">Auto OFF</button></a></p></td>");
+                        client.println("<td><p><a href=\"/offAuto\"><button class=\"button\">Auto OFF</button></a></p></td>");
                     } else {
-                        client.println("<td><p><a href=\"/autoOff\"><button class=\"button button2\">Auto OFF</button></a></p></td>");
+                        client.println("<td><p><a href=\"/offAuto\"><button class=\"button button2\">Auto OFF</button></a></p></td>");
                     }
 
                     client.println("</tr>");
