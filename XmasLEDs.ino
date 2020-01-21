@@ -42,11 +42,13 @@ bool allowPing = true;
 bool allowThSp = true;
 bool autoOff = true;
 bool autoMode = true;
+bool restoreAuto = false;
 bool lastPing = false;
 bool pingResult = false;
 bool extPingResult = false;
 bool wifiAvailable = false;
 bool connectionLost = false;
+bool generalError = false;
 
 unsigned long lastNTPtime = 0;
 unsigned long lastPingTime = 0;
@@ -215,7 +217,8 @@ bool pingStatus(bool pingExternal) {
         }
 
         lastPingTimeExt = millis();
-    } else {
+    }
+    else {
         IPAddress ipOnePlus (192, 168, 1, 5);
         IPAddress ipXiaomi (192, 168, 1, 6);
 
@@ -224,11 +227,13 @@ bool pingStatus(bool pingExternal) {
         if (Ping.ping(ipOnePlus)) {
             lastPing = true;
             pingRet = true;
-        } else {
+        }
+        else {
             if (lastPing) {
                 lastPing = false;
                 pingRet = true;
-            } else {
+            }
+            else {
                 lastPing = false;
                 pingRet = false;
             }
@@ -238,11 +243,13 @@ bool pingStatus(bool pingExternal) {
             if (Ping.ping(ipXiaomi)) {
                 lastPing = true;
                 pingRet = true;
-            } else {
+            }
+            else {
                 if (lastPing) {
                     lastPing = false;
                     pingRet = true;
-                } else {
+                }
+                else {
                     lastPing = false;
                     pingRet = false;
                 }
@@ -253,21 +260,27 @@ bool pingStatus(bool pingExternal) {
     return pingRet;
 }
 
-void ledHandler() {
-    if (digitalRead(USB_1) && digitalRead(USB_2)) {
+void ledHandler(bool error) {
+    if (error) {
+        if (millis() - lastPCBledTime >= 100) {
+            digitalWrite(PCBLED, !digitalRead(PCBLED)); 
+            lastPCBledTime = millis();
+        }
+    }
+    else if (digitalRead(USB_1) && digitalRead(USB_2)) {
         // if (millis() - lastPCBledTime >= 1000) {
         //     digitalWrite(PCBLED, !digitalRead(PCBLED)); 
         //     lastPCBledTime = millis();
         // }
     }
     else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
-        if (millis() - lastPCBledTime >= 500) {
+        if (millis() - lastPCBledTime >= 1000) {
             digitalWrite(PCBLED, !digitalRead(PCBLED));
             lastPCBledTime = millis();
         }
     }
     else if (connectionLost || !wifiAvailable) {
-        if (millis() - lastPCBledTime >= 100) {
+        if (millis() - lastPCBledTime >= 500) {
             digitalWrite(PCBLED, !digitalRead(PCBLED)); 
             lastPCBledTime = millis();
         }
@@ -367,11 +380,11 @@ void handleClientConnection() {
                     }
                     else if (httpHeader.indexOf("GET /auto") >= 0) {
                         autoMode = !autoMode;
-                        if (autoMode) {
-                            autoOff = true;
-                            manuallyOn = false;
-                            manuallyOff = false;
-                        }
+                        // if (autoMode) {
+                        //     autoOff = true;
+                        //     manuallyOn = false;
+                        //     manuallyOff = false;
+                        // }
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /offAuto") >= 0) {
@@ -457,6 +470,7 @@ void handleClientConnection() {
                     client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
                     client.println("<p>snoozeMinutes: " + String(snoozeMinutes) + "</p>");
+                    client.println("<p>restoreAuto: " + String(restoreAuto) + "</p>");
                     client.println("<p>luminosity: " + String(luminosity) + "</p>");
                     client.println("<p>allowPing: " + String(allowPing) + "</p>");
                     client.println("<p>lastPing: " + String(lastPing) + "</p>");
@@ -522,6 +536,17 @@ void loop(){
         pullNTPtime(false);
     }
 
+    // handle incoming connections
+    client = server.available();
+    if (client) {
+        Serial.println("New client connection.");
+        handleClientConnection();
+        // Clear the header variable
+        httpHeader = "";
+        client.stop();
+        Serial.println("Client disconnected.");
+        Serial.println("");
+    }
 
     // debounce PING
     if (millis() > lastPingTime + pingInterval) {
@@ -529,102 +554,75 @@ void loop(){
     }
 
 
-    // update Thingspeak
-    if (((millis() > lastThSpTime + thingSpeakInterval) || outChangeReport) && wifiAvailable) {
-        thingSpeakRequest();
-        outChangeReport = false;
+    if (manuallyOff) {
+        outputState = false;
+        manuallyOn = false;
+        autoMode = false;
     }
-
-
-    // status leds
-    ledHandler();
-
-
-    // auto mode handler
-    if (autoMode) {
-        if (timeClient.getHours() > sunsetTime) {
-            if (allowPing) {
-                pingResult = pingStatus(false);
-            }
-
-            if (pingResult) {
-                outputState = true;
-            }
-            else {
-                outputState = false;
-            }
-        }
-        else {
-            if (!manuallyOn) {
-                outputState= false;
-            }
-            manuallyOff = false;
-        }
-    }
-
-    if (outputState) {
-        if (manuallyOff) {
-            outputState = false;
-        }
-    }
-
-    // auto turn off if not at home
-    if (manuallyOn) {
-        outputState = true;
-
-        // if (timeClient.getHours() > sunsetTime) {
-        //     autoMode = true;
-        // }
-
+    else if (manuallyOn) {
         if (autoOff) {
             if (allowPing) {
                 pingResult = pingStatus(false);
-            }
-            if (!pingResult) {
-                outputState = false;
-                manuallyOn = false;
+                outputState = pingResult;
+                if (!pingResult) {
+                    manuallyOn = false;
+                }
             }
         }
+        else {
+            outputState = true;
+            manuallyOff = false;
+        }
     }
-
-    if (snoozeMinutes) {
+    else if (autoMode) {
+        if (timeClient.getHours() > sunsetTime) {
+            if (allowPing) {
+                outputState = pingStatus(false);
+            }
+        }
+        else {
+            outputState = false;
+            manuallyOff = false;
+        }
+    }
+    else if (snoozeMinutes) {
         if (millis() > (snoozeTime + (snoozeMinutes * 60000))) {
             outputState = false;
             manuallyOn = false;
             snoozeMinutes = 0;
+            if (autoMode) {
+                autoMode = false;
+                restoreAuto = true;
+            }
+        }
+    }
+    else {
+        generalError = true;
+    }
+
+    if (restoreAuto) {
+        if (timeClient.getHours() < sunsetTime) {
+            autoMode = true;
+            restoreAuto = false;
         }
     }
 
-    if (manuallyOff) {
-        outputState = false;
-        autoMode = false;
-    }
+    // reflect output changes
+    digitalWrite(USB_1, outputState);
+    digitalWrite(USB_2, outputState);
+
 
     if (outStateBefore != outputState) {
         outChangeReport = true;
         outStateBefore = outputState;
     }
 
-    // reflect output changes
-    if (outputState) {
-        digitalWrite(USB_1, HIGH);
-        digitalWrite(USB_2, HIGH);
-    } else {
-        digitalWrite(USB_1, LOW);
-        digitalWrite(USB_2, LOW);
+    // update Thingspeak
+    if (((millis() > lastThSpTime + thingSpeakInterval) || outChangeReport) && wifiAvailable) {
+        thingSpeakRequest();
+        outChangeReport = false;
     }
 
-
-    client = server.available();                    // Listen for incoming clients
-    if (client) {                                   // If a new client connects,
-        Serial.println("New client connection.");   // print a message out in the serial port
-        
-        handleClientConnection();
-        // Clear the header variable
-        httpHeader = "";
-        // Close the connection
-        client.stop();
-        Serial.println("Client disconnected.");
-        Serial.println("");
-    }
+    // status leds
+    ledHandler(generalError);
 }
