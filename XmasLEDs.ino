@@ -217,19 +217,12 @@ bool pingStatus(bool pingExternal) {
         IPAddress ipOnePlus (192, 168, 1, 5);
         IPAddress ipXiaomi (192, 168, 1, 6);
 
-        allowPing = false;
-
         if (Ping.ping(ipOnePlus)) {
             lastPing = true;
             pingRet = true;
         } else {
-            if (lastPing) {
-                lastPing = false;
-                pingRet = true;
-            } else {
-                lastPing = false;
-                pingRet = false;
-            }
+            pingRet = lastPing;
+            lastPing = false;
         }
 
         if (!pingRet) {
@@ -237,15 +230,12 @@ bool pingStatus(bool pingExternal) {
                 lastPing = true;
                 pingRet = true;
             } else {
-                if (lastPing) {
-                    lastPing = false;
-                    pingRet = true;
-                } else {
-                    lastPing = false;
-                    pingRet = false;
-                }
+                pingRet = lastPing;
+                lastPing = false;
             }
         }
+
+        allowPing = false;
         lastPingTime = millis();
     }
     return pingRet;
