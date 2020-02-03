@@ -306,16 +306,13 @@ void handleClientConnection() {
 
                     if (httpHeader.indexOf("GET /on") >= 0) {
                         Serial.println("LEDs on");
-                        // digitalWrite(USB_1, HIGH);
-                        // digitalWrite(USB_2, HIGH);
                         manuallyOn = true;
                         manuallyOff = false;
+                        // allowPing = true;         // 2020/01/26 : to check first and maybe enable
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /off") >= 0) {
                         Serial.println("LEDs off");
-                        // digitalWrite(USB_1, LOW);
-                        // digitalWrite(USB_2, LOW);
                         manuallyOn = false;
                         manuallyOff = true;
                         snoozeMinutes = 0;
@@ -347,7 +344,7 @@ void handleClientConnection() {
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /lumUp") >= 0) {
-                        if (luminosity < 1014) {
+                        if (luminosity <= 1014) {
                             luminosity += 10;
                             Serial.print("Luminosity up (");
                             Serial.print(luminosity);
@@ -356,7 +353,7 @@ void handleClientConnection() {
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /lumDow") >= 0) {
-                        if (luminosity > 10) {
+                        if (luminosity >= 10) {
                             luminosity -= 10; 
                             Serial.print("Luminosity down (");
                             Serial.print(luminosity);
@@ -364,7 +361,7 @@ void handleClientConnection() {
                         }
                         refreshToRoot();
                     }
-                    else if (httpHeader.indexOf("GET /auto") >= 0) {
+                    else if (httpHeader.indexOf("GET /autoMode") >= 0) {
                         autoMode = !autoMode;
                         // if (autoMode) {
                         //     autoOff = true;
@@ -386,6 +383,7 @@ void handleClientConnection() {
                     // CSS to style the on/off buttons 
                     // Feel free to change the background-color and font-size attributes to fit your preferences
                     client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
+                    client.println("body {color: white; background: black;}");
                     client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 50px;");
                     client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
                     client.println(".button3 {background-color: #ff3300;}");
@@ -425,9 +423,9 @@ void handleClientConnection() {
                     client.println("</tr>");
                     client.println("<tr>");
                     if (autoMode) {
-                        client.println("<td><p><a href=\"/auto\"><button class=\"button\">Auto Mode</button></a></p></td>");
+                        client.println("<td><p><a href=\"/autoMode\"><button class=\"button\">Auto Mode</button></a></p></td>");
                     } else {
-                        client.println("<td><p><a href=\"/auto\"><button class=\"button button2\">Auto Mode</button></a></p></td>");
+                        client.println("<td><p><a href=\"/autoMode\"><button class=\"button button2\">Auto Mode</button></a></p></td>");
                     }
                     if (autoOff) {
                         client.println("<td><p><a href=\"/offAuto\"><button class=\"button\">Auto OFF</button></a></p></td>");
@@ -546,22 +544,36 @@ void loop(){
         autoMode = false;
     }
     else if (manuallyOn) {
+        outputState = true;
+        manuallyOff = false;
+
         if (autoOff) {
             if (allowPing) {
-                pingResult = pingStatus(false);
-                outputState = pingResult;
-                if (!pingResult) {
+                outputState = pingStatus(false);
+                if (!outputState) {
                     manuallyOn = false;
                 }
             }
         }
-        else {
-            outputState = true;
-            manuallyOff = false;
-        }
+
+        // // 2020/01/26 : THAT WAS BEFORE !!!
+        // if (autoOff) {
+        //     if (allowPing) {
+        //         pingResult = pingStatus(false);
+        //         outputState = pingResult;
+        //         if (!pingResult) {
+        //             manuallyOn = false;
+        //         }
+        //     }
+        // }
+        // else {
+        //     outputState = true;
+        //     manuallyOff = false;
+        // }
     }
-    else if (autoMode) {
-        if (timeClient.getHours() > sunsetTime) {
+
+    if (autoMode) {
+        if (timeClient.getHours() >= sunsetTime) {
             if (allowPing) {
                 outputState = pingStatus(false);
             }
@@ -571,7 +583,8 @@ void loop(){
             manuallyOff = false;
         }
     }
-    else if (snoozeMinutes) {
+
+    if (snoozeMinutes && outputState) {
         if (millis() > (snoozeTime + (snoozeMinutes * 60000))) {
             outputState = false;
             manuallyOn = false;
@@ -581,9 +594,6 @@ void loop(){
                 restoreAuto = true;
             }
         }
-    }
-    else {
-        generalError = true;
     }
 
     if (restoreAuto) {
