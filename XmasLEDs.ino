@@ -370,7 +370,7 @@ void handleClientConnection() {
                         // }
                         refreshToRoot();
                     }
-                    else if (httpHeader.indexOf("GET /offAuto") >= 0) {
+                    else if (httpHeader.indexOf("GET /detectHome") >= 0) {
                         autoOff = !autoOff;
                         refreshToRoot();
                     }
@@ -428,9 +428,9 @@ void handleClientConnection() {
                         client.println("<td><p><a href=\"/autoMode\"><button class=\"button button2\">Auto Mode</button></a></p></td>");
                     }
                     if (autoOff) {
-                        client.println("<td><p><a href=\"/offAuto\"><button class=\"button\">Auto OFF</button></a></p></td>");
+                        client.println("<td><p><a href=\"/detectHome\"><button class=\"button\">Auto OFF</button></a></p></td>");
                     } else {
-                        client.println("<td><p><a href=\"/offAuto\"><button class=\"button button2\">Auto OFF</button></a></p></td>");
+                        client.println("<td><p><a href=\"/detectHome\"><button class=\"button button2\">Auto OFF</button></a></p></td>");
                     }
 
                     client.println("</tr>");
