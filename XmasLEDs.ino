@@ -43,8 +43,8 @@ bool allowThSp = true;
 bool autoOff = true;
 bool autoMode = true;
 bool restoreAuto = false;
-bool lastPing = false;
-bool pingResult = false;
+bool lastPing = true;
+// bool pingResult = false;
 bool extPingResult = false;
 bool wifiAvailable = false;
 bool connectionLost = false;
@@ -222,23 +222,51 @@ bool pingStatus(bool pingExternal) {
         IPAddress ipOnePlus (192, 168, 1, 5);
         IPAddress ipXiaomi (192, 168, 1, 6);
 
-        if (Ping.ping(ipOnePlus)) {
-            lastPing = true;
-            pingRet = true;
-        } else {
-            pingRet = lastPing;
-            lastPing = false;
+        bool pingResOnePlus = false;
+        bool pingResXiaomi = false;
+
+        pingResXiaomi = Ping.ping(ipXiaomi);
+        if (!pingResXiaomi) {
+            pingResOnePlus = Ping.ping(ipOnePlus);
         }
 
-        if (!pingRet) {
-            if (Ping.ping(ipXiaomi)) {
-                lastPing = true;
-                pingRet = true;
-            } else {
-                pingRet = lastPing;
+        if (pingResOnePlus || pingResXiaomi) {
+            // lastPing = true;
+            pingRet = true;
+        }
+        else {
+            // lastPing = false;
+            pingRet = false;
+        }
+
+        if (pingRet) {
+            lastPing = true;
+        }
+        else {
+            if (lastPing) {
                 lastPing = false;
+                pingRet = true;
             }
         }
+
+
+        // if (Ping.ping(ipOnePlus)) {
+        //     lastPing = true;
+        //     pingRet = true;
+        // } else {
+        //     pingRet = lastPing;
+        //     lastPing = false;
+        // }
+
+        // if (!pingRet) {
+        //     if (Ping.ping(ipXiaomi)) {
+        //         lastPing = true;
+        //         pingRet = true;
+        //     } else {
+        //         pingRet = lastPing;
+        //         lastPing = false;
+        //     }
+        // }
 
         allowPing = false;
         lastPingTime = millis();
@@ -380,8 +408,8 @@ void handleClientConnection() {
                     client.println("<meta http-equiv=\"refresh\" content=\"10\" >\n");
                     client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
                     client.println("<link rel=\"icon\" href=\"data:,\">");
-                    // CSS to style the on/off buttons 
-                    // Feel free to change the background-color and font-size attributes to fit your preferences
+                    client.println("<title>XmasLEDs</title>");
+                    // CSS style
                     client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
                     client.println("body {color: white; background: black;}");
                     client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 50px;");
@@ -458,7 +486,7 @@ void handleClientConnection() {
                     client.println("<p>luminosity: " + String(luminosity) + "</p>");
                     client.println("<p>allowPing: " + String(allowPing) + "</p>");
                     client.println("<p>lastPing: " + String(lastPing) + "</p>");
-                    client.println("<p>pingResult: " + String(pingResult) + "</p>");
+                    // client.println("<p>pingResult: " + String(pingResult) + "</p>");
                     client.println("<p>wifiAvailable: " + String(wifiAvailable) + "</p>");
                     client.println("<p>connectionLost: " + String(connectionLost) + "</p>");
                     client.println("<p>connectionLostTime: " + String(connectionLostTime) + "</p>");
