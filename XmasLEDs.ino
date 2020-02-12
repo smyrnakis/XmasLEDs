@@ -44,6 +44,7 @@ bool autoOff = true;
 bool autoMode = true;
 bool restoreAuto = false;
 bool lastPing = true;
+bool movementReported = false;
 // bool pingResult = false;
 bool extPingResult = false;
 bool wifiAvailable = false;
@@ -55,6 +56,7 @@ unsigned long lastPingTime = 0;
 unsigned long lastPingTimeExt = 0;
 unsigned long lastThSpTime = 0;
 unsigned long lastPCBledTime = 0;
+unsigned long movReportedTime = 0;
 
 unsigned int snoozeMinutes = 0;
 unsigned long snoozeTime = 0;
@@ -205,6 +207,7 @@ void pullNTPtime(bool printData) {
 bool pingStatus(bool pingExternal) {
 
     bool pingRet;
+    // digitalWrite(ESPLED, LOW);
 
     if (pingExternal) {
         IPAddress ipThingSpeak (184, 106, 153, 149);
@@ -219,24 +222,17 @@ bool pingStatus(bool pingExternal) {
         lastPingTimeExt = millis();
     }
     else {
+        digitalWrite(ESPLED, LOW);
+
         IPAddress ipOnePlus (192, 168, 1, 5);
         IPAddress ipXiaomi (192, 168, 1, 6);
 
         bool pingResOnePlus = false;
         bool pingResXiaomi = false;
 
-        pingResXiaomi = Ping.ping(ipXiaomi);
-        if (!pingResXiaomi) {
-            pingResOnePlus = Ping.ping(ipOnePlus);
-        }
-
-        if (pingResOnePlus || pingResXiaomi) {
-            // lastPing = true;
-            pingRet = true;
-        }
-        else {
-            // lastPing = false;
-            pingRet = false;
+        pingRet = Ping.ping(ipXiaomi);
+        if (!pingRet) {
+            pingRet = Ping.ping(ipOnePlus);
         }
 
         if (pingRet) {
@@ -244,12 +240,37 @@ bool pingStatus(bool pingExternal) {
         }
         else {
             if (lastPing) {
-                lastPing = false;
                 pingRet = true;
             }
+            lastPing = false;
         }
 
+        // 6/2/2019
+        // pingResXiaomi = Ping.ping(ipXiaomi);
+        // if (!pingResXiaomi) {
+        //     pingResOnePlus = Ping.ping(ipOnePlus);
+        // }
 
+        // if (pingResOnePlus || pingResXiaomi) {
+        //     // lastPing = true;
+        //     pingRet = true;
+        // }
+        // else {
+        //     // lastPing = false;
+        //     pingRet = false;
+        // }
+
+        // if (pingRet) {
+        //     lastPing = true;
+        // }
+        // else {
+        //     if (lastPing) {
+        //         lastPing = false;
+        //         pingRet = true;
+        //     }
+        // }
+
+        // 4/2/2019
         // if (Ping.ping(ipOnePlus)) {
         //     lastPing = true;
         //     pingRet = true;
@@ -271,6 +292,7 @@ bool pingStatus(bool pingExternal) {
         allowPing = false;
         lastPingTime = millis();
     }
+    digitalWrite(ESPLED, HIGH);
     return pingRet;
 }
 
@@ -402,6 +424,12 @@ void handleClientConnection() {
                         autoOff = !autoOff;
                         refreshToRoot();
                     }
+                    else if (httpHeader.indexOf("GET /movement") >= 0) {
+                        Serial.println("Movement reported");
+                        movementReported = true;
+                        movReportedTime = millis();
+                        // refreshToRoot();
+                    }
 
                     // Display the HTML web page
                     client.println("<!DOCTYPE html><html>");
@@ -486,6 +514,8 @@ void handleClientConnection() {
                     client.println("<p>luminosity: " + String(luminosity) + "</p>");
                     client.println("<p>allowPing: " + String(allowPing) + "</p>");
                     client.println("<p>lastPing: " + String(lastPing) + "</p>");
+                    client.println("<p>movementReported: " + String(movementReported) + "</p>");
+                    client.println("<p>movReportedTime: " + String(movReportedTime ) + "</p>");
                     // client.println("<p>pingResult: " + String(pingResult) + "</p>");
                     client.println("<p>wifiAvailable: " + String(wifiAvailable) + "</p>");
                     client.println("<p>connectionLost: " + String(connectionLost) + "</p>");
@@ -565,6 +595,11 @@ void loop(){
         allowPing = true;
     }
 
+    // debounce MOVEMENT detected (every 30 minutes) // 1800000 = 30' | 600 = 10'
+    if (millis() > movReportedTime + 600000) {
+        movementReported = false;
+    }
+
 
     if (manuallyOff) {
         outputState = false;
@@ -576,10 +611,12 @@ void loop(){
         manuallyOff = false;
 
         if (autoOff) {
-            if (allowPing) {
-                outputState = pingStatus(false);
-                if (!outputState) {
-                    manuallyOn = false;
+            if (!movementReported) {
+                if (allowPing) {
+                    outputState = pingStatus(false);
+                    if (!outputState) {
+                        manuallyOn = false;
+                    }
                 }
             }
         }
@@ -600,10 +637,15 @@ void loop(){
         // }
     }
 
-    if (autoMode) {
+    if (autoMode && !manuallyOn) {
         if (timeClient.getHours() >= sunsetTime) {
-            if (allowPing) {
-                outputState = pingStatus(false);
+            if (movementReported) {
+                outputState = true;
+            }
+            else {
+                if (allowPing) {
+                    outputState = pingStatus(false);
+                }
             }
         }
         else {
