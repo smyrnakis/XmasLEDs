@@ -82,6 +82,7 @@ char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursd
 WiFiServer server(80);
 WiFiClient client;
 WiFiClient clientThSp;
+HTTPClient rjdMonitor;
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
@@ -158,6 +159,22 @@ void handleOTA() {
     else if (error == OTA_END_ERROR) Serial.println("End Failed");
     });
     ArduinoOTA.begin();
+}
+
+void ledStatusReport(bool currentState) {
+    if (currentState) {
+        rjdMonitor.begin("http://192.168.1.30/BedLedOn");
+    }
+    else {
+        rjdMonitor.begin("http://192.168.1.30/BedLedOff");
+    }
+
+    int httpCode = rjdMonitor.GET();
+    // if (httpCode > 0) { //Check the returning code
+    //   String payload = rjdMonitor.getString();       //Get the request response payload
+    //   Serial.println(payload);                       //Print the response payload
+    // }
+    rjdMonitor.end();
 }
 
 void thingSpeakRequest() {
@@ -683,11 +700,18 @@ void loop(){
         outStateBefore = outputState;
     }
 
-    // update Thingspeak
-    if (((millis() > lastThSpTime + thingSpeakInterval) || outChangeReport) && wifiAvailable) {
-        thingSpeakRequest();
+    // // update Thingspeak
+    // if (((millis() > lastThSpTime + thingSpeakInterval) || outChangeReport) && wifiAvailable) {
+    //     thingSpeakRequest();
+    //     outChangeReport = false;
+    // }
+
+    // report status to rjdMonitor
+    if (((millis() > lastThSpTime + 30000) || outChangeReport) && wifiAvailable) {
+        ledStatusReport(outputState);
         outChangeReport = false;
     }
+
 
     // status leds
     ledHandler(generalError);
