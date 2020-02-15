@@ -177,9 +177,9 @@ void ledStatusReport(bool currentState) {
 }
 
 void pullNTPtime(bool printData) {
-    // Serial.println("Pulling NTP...");
     timeClient.update();
     formatedTime = timeClient.getFormattedTime();
+    // dayToday = daysOfTheWeek[timeClient.getDay()];
 
     if (printData) {
         // Serial.print(daysOfTheWeek[timeClient.getDay()]);
@@ -222,7 +222,13 @@ bool pingStatus(bool pingExternal) {
 
         pingRet = Ping.ping(ipXiaomi);
         if (!pingRet) {
+            pingRet = Ping.ping(ipXiaomi);
+        }
+        if (!pingRet) {
             pingRet = Ping.ping(ipOnePlus);
+            if (!pingRet) {
+                pingRet = Ping.ping(ipOnePlus);
+            }
         }
 
         if (pingRet) {
