@@ -48,12 +48,11 @@ bool movementReported = false;
 bool extPingResult = false;
 bool wifiAvailable = false;
 bool connectionLost = false;
-bool generalError = false;
 
 unsigned long lastNTPtime = 0;
 unsigned long lastPingTime = 0;
 unsigned long lastPingTimeExt = 0;
-unsigned long lastThSpTime = 0;
+unsigned long lastReportTime = 0;
 unsigned long lastPCBledTime = 0;
 unsigned long movReportedTime = 0;
 
@@ -61,12 +60,12 @@ unsigned int snoozeMinutes = 0;
 unsigned long snoozeTime = 0;
 unsigned long connectionTime = 0;
 unsigned long connectionLostTime = 0;
-const long connectionKeepAlive = 2000;
+const int connectionKeepAlive = 2000;
 
 const int ntpInterval = 2000;
-const int pingInterval = 300000;
-const int thingSpeakInterval = 300000;
-const int internetCheckInterval = 120000;
+unsigned long pingInterval = 300000;
+const long statusReportInterval = 30000;
+const long internetCheckInterval = 120000;
 
 // Meteorological info for Geneva, CH
 // Sunset time: object/daily/data/0/sunsetTime
@@ -174,32 +173,7 @@ void ledStatusReport(bool currentState) {
     //   Serial.println(payload);                       //Print the response payload
     // }
     rjdMonitor.end();
-}
-
-void thingSpeakRequest() {
-    if (clientThSp.connect(thinkSpeakAPIurl,80)) {
-        String postStr = apiKey;
-        postStr +="&field6=";
-        postStr += String(digitalRead(USB_1));
-        postStr += "\r\n\r\n";
-
-        clientThSp.print("POST /update HTTP/1.1\n");
-        clientThSp.print("Host: api.thingspeak.com\n");
-        clientThSp.print("Connection: close\n");
-        clientThSp.print("X-THINGSPEAKAPIKEY: " + (String)apiKey + "\n");
-        clientThSp.print("Content-Type: application/x-www-form-urlencoded\n");
-        clientThSp.print("Content-Length: ");
-        clientThSp.print(postStr.length());
-        clientThSp.print("\n\n");
-        clientThSp.print(postStr);
-        clientThSp.stop();
-        Serial.println("Data uploaded to thingspeak!");
-    }
-    else {
-        Serial.println("ERROR: could not upload data to thingspeak!");
-        clientThSp.stop();
-    }
-    lastThSpTime = millis();
+    lastReportTime = millis();
 }
 
 void pullNTPtime(bool printData) {
@@ -313,24 +287,25 @@ bool pingStatus(bool pingExternal) {
 }
 
 void ledHandler(bool error) {
+    // error variable
     if (error) {
         if (millis() - lastPCBledTime >= 100) {
             digitalWrite(PCBLED, !digitalRead(PCBLED)); 
             lastPCBledTime = millis();
         }
     }
+    // all normal
     else if (digitalRead(USB_1) && digitalRead(USB_2)) {
-        // if (millis() - lastPCBledTime >= 1000) {
-        //     digitalWrite(PCBLED, !digitalRead(PCBLED)); 
-        //     lastPCBledTime = millis();
-        // }
+        ;
     }
+    // only one ON (error)
     else if (digitalRead(USB_1) ^ digitalRead(USB_2)) {
         if (millis() - lastPCBledTime >= 1000) {
             digitalWrite(PCBLED, !digitalRead(PCBLED));
             lastPCBledTime = millis();
         }
     }
+    // no connectivity
     else if (connectionLost || !wifiAvailable) {
         if (millis() - lastPCBledTime >= 500) {
             digitalWrite(PCBLED, !digitalRead(PCBLED)); 
@@ -348,13 +323,13 @@ void refreshToRoot() {
     client.print("</head>");
 }
 
-void sendOk() {
-    client.println("HTTP/1.1 200 OK");
-    client.println("Content-type:text/html");
-    client.println("Connection: close");
-    client.println();
-    refreshToRoot();
-}
+// void sendOk() {
+//     client.println("HTTP/1.1 200 OK");
+//     client.println("Content-type:text/html");
+//     client.println("Connection: close");
+//     client.println();
+//     refreshToRoot();
+// }
 
 void handleClientConnection() {
     String currentLine = "";                    // make a String to hold incoming data from the client
@@ -541,6 +516,7 @@ void handleClientConnection() {
                     unsigned long tempSec;
                     tempSec = ((millis() - movReportedTime) / 1000);
                     client.println("<p>movReportedTime: -" + String(tempSec) + "</p>");
+                    client.println("<p>pingInterval: " + String(pingInterval) + "</p>");
                     client.println("<p>allowPing: " + String(allowPing) + "</p>");
                     client.println("<p>lastPing: " + String(lastPing) + "</p>");
                     tempSec = ((millis() - lastPingTime) / 1000);
@@ -619,13 +595,21 @@ void loop(){
         Serial.println("");
     }
 
+    // adjust PING interval
+    if (!outputState) {
+        pingInterval = 150000;  // 2.5 min
+    }
+    else {
+        pingInterval = 300000;  // 5 min
+    }
+
     // debounce PING
     if (millis() > lastPingTime + pingInterval) {
         allowPing = true;
     }
 
-    // debounce MOVEMENT detected (every 30 minutes) // 1800000 = 30' | 600k = 10'
-    if (millis() > movReportedTime + 600000) {
+    // debounce MOVEMENT detected // 1800000 = 30' | 600k = 10'
+    if ((millis() > movReportedTime + 600000) && movementReported) {
         movementReported = false;
     }
 
@@ -697,19 +681,14 @@ void loop(){
         outStateBefore = outputState;
     }
 
-    // // update Thingspeak
-    // if (((millis() > lastThSpTime + thingSpeakInterval) || outChangeReport) && wifiAvailable) {
-    //     thingSpeakRequest();
-    //     outChangeReport = false;
-    // }
 
     // report status to rjdMonitor
-    if (((millis() > lastThSpTime + 30000) || outChangeReport) && wifiAvailable) {
+    if (((millis() > lastReportTime + statusReportInterval) || outChangeReport) && wifiAvailable) {
         ledStatusReport(outputState);
         outChangeReport = false;
     }
 
 
     // status leds
-    ledHandler(generalError);
+    ledHandler(false);
 }
