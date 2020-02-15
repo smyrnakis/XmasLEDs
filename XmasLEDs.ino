@@ -45,7 +45,6 @@ bool autoMode = true;
 bool restoreAuto = false;
 bool lastPing = true;
 bool movementReported = false;
-// bool pingResult = false;
 bool extPingResult = false;
 bool wifiAvailable = false;
 bool connectionLost = false;
@@ -72,7 +71,7 @@ const int internetCheckInterval = 120000;
 // Meteorological info for Geneva, CH
 // Sunset time: object/daily/data/0/sunsetTime
 String darkSkyUri = "https://darksky.net/forecast/46.2073,6.1499/si12/en.json";
-unsigned int sunsetTime = 16;
+unsigned int sunsetTime = 17;
 
 const char* thinkSpeakAPIurl = "api.thingspeak.com"; // "184.106.153.149" or api.thingspeak.com
 
@@ -349,6 +348,14 @@ void refreshToRoot() {
     client.print("</head>");
 }
 
+void sendOk() {
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-type:text/html");
+    client.println("Connection: close");
+    client.println();
+    refreshToRoot();
+}
+
 void handleClientConnection() {
     String currentLine = "";                    // make a String to hold incoming data from the client
     unsigned long currentTime;
@@ -446,6 +453,7 @@ void handleClientConnection() {
                         movementReported = true;
                         movReportedTime = millis();
                         // refreshToRoot();
+                        // sendOk();
                     }
 
                     // Display the HTML web page
@@ -522,22 +530,26 @@ void handleClientConnection() {
 
                     client.println("<p></p>");
                     client.println("<p>current millis: " + String(millis()) + "</p>");
-                    client.println("<p>autoMode: " + String(autoMode) + "</p>");
-                    client.println("<p>autoOff: " + String(autoOff) + "</p>");
                     client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
-                    client.println("<p>snoozeMinutes: " + String(snoozeMinutes) + "</p>");
+                    client.println("<p>autoMode: " + String(autoMode) + "</p>");
                     client.println("<p>restoreAuto: " + String(restoreAuto) + "</p>");
+                    client.println("<p>autoOff: " + String(autoOff) + "</p>");
                     client.println("<p>luminosity: " + String(luminosity) + "</p>");
+                    client.println("<p>snoozeMinutes: " + String(snoozeMinutes) + "</p>");
+                    client.println("<p>movementReported: " + String(movementReported) + "</p>");
+                    unsigned long tempSec;
+                    tempSec = ((millis() - movReportedTime) / 1000);
+                    client.println("<p>movReportedTime: -" + String(tempSec) + "</p>");
                     client.println("<p>allowPing: " + String(allowPing) + "</p>");
                     client.println("<p>lastPing: " + String(lastPing) + "</p>");
-                    client.println("<p>movementReported: " + String(movementReported) + "</p>");
-                    client.println("<p>movReportedTime: " + String(movReportedTime ) + "</p>");
-                    // client.println("<p>pingResult: " + String(pingResult) + "</p>");
+                    tempSec = ((millis() - lastPingTime) / 1000);
+                    client.println("<p>lastPingTime: -" + String(tempSec) + "</p>");
+                    tempSec = ((millis() - lastPingTimeExt) / 1000);
+                    client.println("<p>lastPingTimeExt: -" + String(tempSec) + "</p>");
                     client.println("<p>wifiAvailable: " + String(wifiAvailable) + "</p>");
                     client.println("<p>connectionLost: " + String(connectionLost) + "</p>");
                     client.println("<p>connectionLostTime: " + String(connectionLostTime) + "</p>");
-                    client.println("<p>lastPingTimeExt: " + String(lastPingTimeExt) + "</p>");
 
                     client.println("</body></html>");
 
@@ -612,7 +624,7 @@ void loop(){
         allowPing = true;
     }
 
-    // debounce MOVEMENT detected (every 30 minutes) // 1800000 = 30' | 600 = 10'
+    // debounce MOVEMENT detected (every 30 minutes) // 1800000 = 30' | 600k = 10'
     if (millis() > movReportedTime + 600000) {
         movementReported = false;
     }
@@ -637,21 +649,6 @@ void loop(){
                 }
             }
         }
-
-        // // 2020/01/26 : THAT WAS BEFORE !!!
-        // if (autoOff) {
-        //     if (allowPing) {
-        //         pingResult = pingStatus(false);
-        //         outputState = pingResult;
-        //         if (!pingResult) {
-        //             manuallyOn = false;
-        //         }
-        //     }
-        // }
-        // else {
-        //     outputState = true;
-        //     manuallyOff = false;
-        // }
     }
 
     if (autoMode && !manuallyOn) {
