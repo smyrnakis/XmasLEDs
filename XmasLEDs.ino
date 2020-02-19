@@ -448,7 +448,7 @@ void handleClientConnection() {
                     client.println("body {color: white; background: black;}");
                     client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 50px;");
                     client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-                    client.println(".button3 {background-color: #ff3300;}");
+                    client.println(".button3 {background-color: #A0A7A9; color: gray;}");
                     client.println(".button2 {background-color: #77878A;}</style></head>");
 
 
