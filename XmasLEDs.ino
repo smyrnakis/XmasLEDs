@@ -35,6 +35,7 @@ bool manuallyOff = false;
 bool outputState = false;
 bool outStateBefore = false;
 bool outChangeReport = false;
+bool outChangeDimmer = false;
 
 unsigned int luminosity = 1024;
 
@@ -95,8 +96,10 @@ void setup() {
 
     digitalWrite(PCBLED, HIGH);
     digitalWrite(ESPLED, HIGH);
-    digitalWrite(USB_1, LOW);
-    digitalWrite(USB_2, LOW);
+    analogWrite(USB_1, luminosity);
+    analogWrite(USB_2, luminosity);
+    // digitalWrite(USB_1, LOW);
+    // digitalWrite(USB_2, LOW);
 
     Serial.begin(115200);
     delay(100);
@@ -159,7 +162,7 @@ void handleOTA() {
     ArduinoOTA.begin();
 }
 
-void ledStatusReport(bool currentState) {
+void currentStatusReport(bool currentState) {
     if (currentState) {
         rjdMonitor.begin("http://192.168.1.30/BedLedOn");
     }
@@ -677,20 +680,32 @@ void loop(){
         }
     }
 
-    // reflect output changes
-    digitalWrite(USB_1, outputState);
-    digitalWrite(USB_2, outputState);
-
 
     if (outStateBefore != outputState) {
         outChangeReport = true;
+        outChangeDimmer = true;
         outStateBefore = outputState;
+    }
+
+
+    // reflect output changes
+    if (outChangeDimmer) {
+        if (outputState && (analogRead(USB_1) > 0)) {
+            
+        }
+        outChangeDimmer = false;
+    }
+    else {
+        analogWrite(USB_1, luminosity);
+        analogWrite(USB_2, luminosity);
+        // digitalWrite(USB_1, outputState);
+        // digitalWrite(USB_2, outputState);
     }
 
 
     // report status to rjdMonitor
     if (((millis() > lastReportTime + statusReportInterval) || outChangeReport) && wifiAvailable) {
-        ledStatusReport(outputState);
+        currentStatusReport(outputState);
         outChangeReport = false;
     }
 
