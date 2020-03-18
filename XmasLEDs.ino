@@ -70,7 +70,7 @@ const long internetCheckInterval = 120000;
 // Meteorological info for Geneva, CH
 // Sunset time: object/daily/data/0/sunsetTime
 String darkSkyUri = "https://darksky.net/forecast/46.2073,6.1499/si12/en.json";
-unsigned int sunsetTime = 17;
+unsigned int sunsetTime = 18;
 
 const char* thinkSpeakAPIurl = "api.thingspeak.com"; // "184.106.153.149" or api.thingspeak.com
 
@@ -217,73 +217,26 @@ bool pingStatus(bool pingExternal) {
         IPAddress ipOnePlus (192, 168, 1, 5);
         IPAddress ipXiaomi (192, 168, 1, 6);
 
-        bool pingResOnePlus = false;
-        bool pingResXiaomi = false;
-
         pingRet = Ping.ping(ipXiaomi);
-        if (!pingRet) {
+        if (pingRet == false) {
             pingRet = Ping.ping(ipXiaomi);
         }
-        if (!pingRet) {
+        if (pingRet == false) {
             pingRet = Ping.ping(ipOnePlus);
-            if (!pingRet) {
+            if (pingRet == false) {
                 pingRet = Ping.ping(ipOnePlus);
             }
         }
 
-        if (pingRet) {
+        if (pingRet == true) {
             lastPing = true;
         }
         else {
-            if (lastPing) {
+            if (lastPing == true) {
                 pingRet = true;
             }
             lastPing = false;
         }
-
-        // 6/2/2019
-        // pingResXiaomi = Ping.ping(ipXiaomi);
-        // if (!pingResXiaomi) {
-        //     pingResOnePlus = Ping.ping(ipOnePlus);
-        // }
-
-        // if (pingResOnePlus || pingResXiaomi) {
-        //     // lastPing = true;
-        //     pingRet = true;
-        // }
-        // else {
-        //     // lastPing = false;
-        //     pingRet = false;
-        // }
-
-        // if (pingRet) {
-        //     lastPing = true;
-        // }
-        // else {
-        //     if (lastPing) {
-        //         lastPing = false;
-        //         pingRet = true;
-        //     }
-        // }
-
-        // 4/2/2019
-        // if (Ping.ping(ipOnePlus)) {
-        //     lastPing = true;
-        //     pingRet = true;
-        // } else {
-        //     pingRet = lastPing;
-        //     lastPing = false;
-        // }
-
-        // if (!pingRet) {
-        //     if (Ping.ping(ipXiaomi)) {
-        //         lastPing = true;
-        //         pingRet = true;
-        //     } else {
-        //         pingRet = lastPing;
-        //         lastPing = false;
-        //     }
-        // }
 
         allowPing = false;
         lastPingTime = millis();
