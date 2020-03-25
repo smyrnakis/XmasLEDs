@@ -200,8 +200,8 @@ bool pingStatus(bool pingExternal) {
     // digitalWrite(ESPLED, LOW);
 
     if (pingExternal) {
-        IPAddress ipThingSpeak (184, 106, 153, 149);
-        IPAddress ipGoogle (8, 8, 8, 8);
+        const IPAddress ipThingSpeak (184, 106, 153, 149);
+        const IPAddress ipGoogle (8, 8, 8, 8);
 
         pingRet = Ping.ping(ipThingSpeak);
 
@@ -214,17 +214,17 @@ bool pingStatus(bool pingExternal) {
     else {
         digitalWrite(ESPLED, LOW);
 
-        IPAddress ipOnePlus (192, 168, 1, 5);
-        IPAddress ipXiaomi (192, 168, 1, 6);
+        const IPAddress ipOnePlus (192, 168, 1, 5);
+        const IPAddress ipXiaomi (192, 168, 1, 6);
 
-        pingRet = Ping.ping(ipXiaomi);
+        pingRet = Ping.ping(ipXiaomi, 2);
         if (pingRet == false) {
-            pingRet = Ping.ping(ipXiaomi);
+            pingRet = Ping.ping(ipXiaomi, 2);
         }
         if (pingRet == false) {
-            pingRet = Ping.ping(ipOnePlus);
+            pingRet = Ping.ping(ipOnePlus, 2);
             if (pingRet == false) {
-                pingRet = Ping.ping(ipOnePlus);
+                pingRet = Ping.ping(ipOnePlus, 2);
             }
         }
 
