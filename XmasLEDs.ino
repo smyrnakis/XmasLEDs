@@ -312,7 +312,10 @@ void handleClientConnection() {
                     client.println("Connection: close");
                     client.println();
 
-                    if (httpHeader.indexOf("GET /on") >= 0) {
+                    if (httpHeader.indexOf("GET /restart") >= 0) {
+                        ESP.restart();
+                    }
+                    else if (httpHeader.indexOf("GET /on") >= 0) {
                         Serial.println("LEDs on");
                         manuallyOn = true;
                         manuallyOff = false;
