@@ -74,7 +74,7 @@ unsigned int sunsetTime = 18;
 
 const char* thinkSpeakAPIurl = "api.thingspeak.com"; // "184.106.153.149" or api.thingspeak.com
 
-const long utcOffsetInSeconds = 3600; // 1H (3600) for winter time / 2H (7200) for summer time
+const long utcOffsetInSeconds = 7200; // 1H (3600) for winter time / 2H (7200) for summer time
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 WiFiServer server(80);
