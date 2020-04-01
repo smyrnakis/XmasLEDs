@@ -66,6 +66,7 @@ const int ntpInterval = 2000;
 unsigned long pingInterval = 300000;
 const long statusReportInterval = 30000;
 const long internetCheckInterval = 120000;
+unsigned long movementResetTimer = 600000;
 
 // Meteorological info for Geneva, CH
 // Sunset time: object/daily/data/0/sunsetTime
@@ -214,6 +215,9 @@ bool pingStatus(bool pingExternal) {
     else {
         digitalWrite(ESPLED, LOW);
 
+        const IPAddress ipLaptopSamsung (192, 168, 1, 2);
+        const IPAddress ipLaptopAsus (192, 168, 1, 3);
+        const IPAddress ipLaptopMac (192, 168, 1, 4);
         const IPAddress ipOnePlus (192, 168, 1, 5);
         const IPAddress ipXiaomi (192, 168, 1, 6);
 
@@ -466,7 +470,12 @@ void handleClientConnection() {
                     client.println("</table>");
 
                     client.println("<p></p>");
-                    client.println("<p>current millis: " + String(millis()) + "</p>");
+                    float tempSec;
+                    // unsigned long tempSec;
+                    tempSec = (float)(millis()/1000.0)/60.0;
+                    client.println("<p>current millis: " + String(millis()) + " (");
+                    client.println(tempSec,1);
+                    client.println("')</p>");
                     client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
                     client.println("<p>autoMode: " + String(autoMode) + "</p>");
@@ -475,16 +484,25 @@ void handleClientConnection() {
                     client.println("<p>luminosity: " + String(luminosity) + "</p>");
                     client.println("<p>snoozeMinutes: " + String(snoozeMinutes) + "</p>");
                     client.println("<p>movementReported: " + String(movementReported) + "</p>");
-                    unsigned long tempSec;
                     tempSec = ((millis() - movReportedTime) / 1000);
-                    client.println("<p>movReportedTime: -" + String(tempSec) + "</p>");
-                    client.println("<p>pingInterval: " + String(pingInterval) + "</p>");
+                    // client.println("<p>movReportedTime (sec): " + String(tempSec) + "</p>");
+                    client.println("<p>movReportedTime (sec): ");
+                    client.println(tempSec,0);
+                    client.println("</p>");
+                    client.println("<p>movementResetTimer (min): " + String(movementResetTimer/1000/60) + "</p>");
+                    client.println("<p>pingInterval (sec): " + String(pingInterval/1000) + "</p>");
                     client.println("<p>allowPing: " + String(allowPing) + "</p>");
                     client.println("<p>lastPing: " + String(lastPing) + "</p>");
                     tempSec = ((millis() - lastPingTime) / 1000);
-                    client.println("<p>lastPingTime: -" + String(tempSec) + "</p>");
+                    // client.println("<p>lastPingTime (sec): " + String(tempSec) + "</p>");
+                    client.println("<p>lastPingTime (sec): ");
+                    client.println(tempSec, 0);
+                    client.println("</p>");
                     tempSec = ((millis() - lastPingTimeExt) / 1000);
-                    client.println("<p>lastPingTimeExt: -" + String(tempSec) + "</p>");
+                    // client.println("<p>lastPingTimeExt (sec): " + String(tempSec) + "</p>");
+                    client.println("<p>lastPingTimeExt (sec): ");
+                    client.println(tempSec, 0);
+                    client.println("</p>");
                     client.println("<p>wifiAvailable: " + String(wifiAvailable) + "</p>");
                     client.println("<p>connectionLost: " + String(connectionLost) + "</p>");
                     client.println("<p>connectionLostTime: " + String(connectionLostTime) + "</p>");
@@ -570,8 +588,14 @@ void loop(){
         allowPing = true;
     }
 
-    // debounce MOVEMENT detected // 1800000 = 30' | 600k = 10'
-    if ((millis() > movReportedTime + 600000) && movementReported) {
+    // debounce MOVEMENT detected // 1800000 = 30' | 600000 = 10'
+    if ((timeClient.getHours() >= 20) && (timeClient.getHours() <= 22)) {
+        movementResetTimer = 1800000;   // 30' between 20:00 - 22:59
+    }
+    else {
+        movementResetTimer = 600000;    // 10' rest of the time
+    }
+    if ((millis() > movReportedTime + movementResetTimer) && movementReported) {
         movementReported = false;
     }
 
