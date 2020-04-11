@@ -221,18 +221,20 @@ bool pingStatus(bool pingExternal) {
         const IPAddress ipOnePlus (192, 168, 1, 5);
         const IPAddress ipXiaomi (192, 168, 1, 6);
 
+
+
         pingRet = Ping.ping(ipXiaomi, 2);
-        if (pingRet == false) {
+        if (!pingRet) {
             pingRet = Ping.ping(ipXiaomi, 2);
         }
-        if (pingRet == false) {
+        if (!pingRet) {
             pingRet = Ping.ping(ipOnePlus, 2);
-            if (pingRet == false) {
+            if (!pingRet) {
                 pingRet = Ping.ping(ipOnePlus, 2);
             }
         }
 
-        if (pingRet == true) {
+        if (pingRet) {
             lastPing = true;
         }
         else {
@@ -473,9 +475,9 @@ void handleClientConnection() {
                     float tempSec;
                     // unsigned long tempSec;
                     tempSec = (float)(millis()/1000.0)/60.0;
-                    client.println("<p>current millis: " + String(millis()) + " (");
+                    client.println("<p>uptime: " + String(millis()) + " (");
                     client.println(tempSec,1);
-                    client.println("')</p>");
+                    client.println("' )</p>");
                     client.println("<p>manuallyOn: " + String(manuallyOn) + "</p>");
                     client.println("<p>manuallyOff: " + String(manuallyOff) + "</p>");
                     client.println("<p>autoMode: " + String(autoMode) + "</p>");
@@ -484,15 +486,15 @@ void handleClientConnection() {
                     client.println("<p>luminosity: " + String(luminosity) + "</p>");
                     client.println("<p>snoozeMinutes: " + String(snoozeMinutes) + "</p>");
                     client.println("<p>movementReported: " + String(movementReported) + "</p>");
-                    tempSec = ((millis() - movReportedTime) / 1000);
+                    tempSec = ((float)(millis() - movReportedTime) / 1000.0 / 60.0);
                     // client.println("<p>movReportedTime (sec): " + String(tempSec) + "</p>");
-                    client.println("<p>movReportedTime (sec): ");
-                    client.println(tempSec,0);
+                    client.println("<p>movReportedTime (min): ");
+                    client.println(tempSec,1);
                     client.println("</p>");
-                    client.println("<p>movementResetTimer (min): " + String(movementResetTimer/1000/60) + "</p>");
-                    client.println("<p>pingInterval (sec): " + String(pingInterval/1000) + "</p>");
-                    client.println("<p>allowPing: " + String(allowPing) + "</p>");
+                    client.println("<p>movementResetTimer (min): " + String(movementResetTimer / 1000 / 60) + "</p>");
                     client.println("<p>lastPing: " + String(lastPing) + "</p>");
+                    client.println("<p>allowPing: " + String(allowPing) + "</p>");
+                    client.println("<p>pingInterval (sec): " + String(pingInterval / 1000) + "</p>");
                     tempSec = ((millis() - lastPingTime) / 1000);
                     // client.println("<p>lastPingTime (sec): " + String(tempSec) + "</p>");
                     client.println("<p>lastPingTime (sec): ");
