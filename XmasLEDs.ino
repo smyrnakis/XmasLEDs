@@ -56,6 +56,7 @@ unsigned long lastReportTime = 0;
 unsigned long lastPCBledTime = 0;
 unsigned long movReportedTime = 0;
 
+short pingCount = 1;
 unsigned int snoozeMinutes = 0;
 unsigned long snoozeTime = 0;
 unsigned long connectionTime = 0;
@@ -221,27 +222,34 @@ bool pingStatus(bool pingExternal) {
         const IPAddress ipOnePlus (192, 168, 1, 5);
         const IPAddress ipXiaomi (192, 168, 1, 6);
 
-
-
-        pingRet = Ping.ping(ipXiaomi, 2);
-        if (!pingRet) {
-            pingRet = Ping.ping(ipXiaomi, 2);
+        if (Ping.ping(ipLaptopSamsung, 2)) {
+            pingCount = 1;
+            pingRet = true;
         }
-        if (!pingRet) {
-            pingRet = Ping.ping(ipOnePlus, 2);
-            if (!pingRet) {
-                pingRet = Ping.ping(ipOnePlus, 2);
-            }
+        else if (Ping.ping(ipLaptopAsus, 2)) {
+            pingCount = 1;
+            pingRet = true;
         }
-
-        if (pingRet) {
-            lastPing = true;
+        else if (Ping.ping(ipLaptopMac, 2)) {
+            pingCount = 1;
+            pingRet = true;
+        }
+        else if (Ping.ping(ipOnePlus, 2)) {
+            pingCount = 1;
+            pingRet = true;
+        }
+        else if (Ping.ping(ipXiaomi, 2)) {
+            pingCount = 1;
+            pingRet = true;
         }
         else {
-            if (lastPing == true) {
+            if (pingCount == 0) {
+                pingRet = false;
+            }
+            else if (pingCount == 1) {
+                pingCount = 0;
                 pingRet = true;
             }
-            lastPing = false;
         }
 
         allowPing = false;
