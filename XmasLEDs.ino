@@ -388,11 +388,11 @@ void handleClientConnection() {
                     }
                     else if (httpHeader.indexOf("GET /autoMode") >= 0) {
                         autoMode = !autoMode;
-                        // if (autoMode) {
-                        //     autoOff = true;
-                        //     manuallyOn = false;
-                        //     manuallyOff = false;
-                        // }
+                        if (autoMode) {
+                            // autoOff = true;
+                            // manuallyOn = false;
+                            manuallyOff = false;
+                        }
                         refreshToRoot();
                     }
                     else if (httpHeader.indexOf("GET /detectHome") >= 0) {
