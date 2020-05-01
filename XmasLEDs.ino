@@ -613,7 +613,10 @@ void loop(){
     if (manuallyOff) {
         outputState = false;
         manuallyOn = false;
-        autoMode = false;
+        // autoMode = false;
+        if (timeClient.getHours() >= sunsetTime) {
+            autoMode = false;
+        }
     }
     else if (manuallyOn) {
         outputState = true;
