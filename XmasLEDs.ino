@@ -340,6 +340,7 @@ void handleClientConnection() {
                         Serial.println("LEDs off");
                         manuallyOn = false;
                         manuallyOff = true;
+                        restoreAuto = true;
                         snoozeMinutes = 0;
                         refreshToRoot();
                     }
@@ -646,8 +647,12 @@ void loop(){
             }
         }
         else {
-            outputState = false;
-            manuallyOff = false;
+            // avoid turning off from "auto mode" when "snooze minutes"
+            // ends **after** the auto-off time
+            if (snoozeMinutes == 0) {
+                outputState = false;
+                manuallyOff = false;
+            }
         }
     }
 
