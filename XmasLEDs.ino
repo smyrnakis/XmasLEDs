@@ -72,7 +72,7 @@ unsigned long movementResetTimer = 600000;
 // Meteorological info for Geneva, CH
 // Sunset time: object/daily/data/0/sunsetTime
 String darkSkyUri = "https://darksky.net/forecast/46.2073,6.1499/si12/en.json";
-unsigned int sunsetTime = 20;
+unsigned int sunsetTime = 19;
 
 const char* thinkSpeakAPIurl = "api.thingspeak.com"; // "184.106.153.149" or api.thingspeak.com
 
@@ -600,7 +600,7 @@ void loop(){
     }
 
     // debounce MOVEMENT detected // 1800000 = 30' | 600000 = 10'
-    if ((timeClient.getHours() >= 20) && (timeClient.getHours() <= 22)) {
+    if ((timeClient.getHours() >= sunsetTime) && (timeClient.getHours() <= 22)) {
         movementResetTimer = 1800000;   // 30' between 20:00 - 22:59
     }
     else {
