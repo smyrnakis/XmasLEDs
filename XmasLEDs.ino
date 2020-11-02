@@ -637,7 +637,7 @@ void loop(){
     }
 
     if (autoMode && !manuallyOn) {
-        if ((timeClient.getHours() >= turnOnThreshold) && (timeClient.getHours() < turnOffThreshold)) {
+        if ((timeClient.getHours() >= turnOnThreshold) || (timeClient.getHours() < turnOffThreshold)) {
             if (movementReported) {
                 outputState = true;
             }
