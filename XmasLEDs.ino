@@ -72,11 +72,12 @@ unsigned long movementResetTimer = 600000;
 // Meteorological info for Geneva, CH
 // Sunset time: object/daily/data/0/sunsetTime
 String darkSkyUri = "https://darksky.net/forecast/46.2073,6.1499/si12/en.json";
-unsigned int sunsetTime = 17;
+unsigned int turnOnThreshold = 17;
+unsigned int turnOffThreshold = 1;
 
 const char* thinkSpeakAPIurl = "api.thingspeak.com"; // "184.106.153.149" or api.thingspeak.com
 
-const long utcOffsetInSeconds = 7200; // 1H (3600) for winter time / 2H (7200) for summer time
+const long utcOffsetInSeconds = 3600; // 1H (3600) for winter time / 2H (7200) for summer time
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 WiFiServer server(80);
@@ -600,11 +601,11 @@ void loop(){
     }
 
     // debounce MOVEMENT detected // 1800000 = 30' | 600000 = 10'
-    if ((timeClient.getHours() >= sunsetTime) && (timeClient.getHours() <= 22)) {
-        movementResetTimer = 1800000;   // 30' between 20:00 - 22:59
+    if ((timeClient.getHours() >= turnOnThreshold) && (timeClient.getHours() <= 23)) {
+        movementResetTimer = 1800000;   // 30' between 20:00 - 23:59
     }
     else {
-        movementResetTimer = 600000;    // 10' rest of the time
+        movementResetTimer = 900000;    // 15' rest of the time
     }
     if ((millis() > movReportedTime + movementResetTimer) && movementReported) {
         movementReported = false;
@@ -615,7 +616,7 @@ void loop(){
         outputState = false;
         manuallyOn = false;
         // autoMode = false;
-        if (timeClient.getHours() >= sunsetTime) {
+        if (timeClient.getHours() >= turnOnThreshold) {
             autoMode = false;
         }
     }
@@ -636,7 +637,7 @@ void loop(){
     }
 
     if (autoMode && !manuallyOn) {
-        if (timeClient.getHours() >= sunsetTime) {
+        if ((timeClient.getHours() >= turnOnThreshold) && (timeClient.getHours() < turnOffThreshold)) {
             if (movementReported) {
                 outputState = true;
             }
@@ -669,7 +670,7 @@ void loop(){
     }
 
     if (restoreAuto) {
-        if (timeClient.getHours() < sunsetTime) {
+        if ((timeClient.getHours() < turnOnThreshold) && (timeClient.getHours() > turnOffThreshold)) {
             autoMode = true;
             restoreAuto = false;
         }
