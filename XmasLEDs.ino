@@ -73,7 +73,7 @@ unsigned long movementResetTimer = 600000;
 // Sunset time: object/daily/data/0/sunsetTime
 String darkSkyUri = "https://darksky.net/forecast/46.2073,6.1499/si12/en.json";
 unsigned int turnOnThreshold = 17;
-unsigned int turnOffThreshold = 1;
+unsigned int turnOffThreshold = 0;
 
 const char* thinkSpeakAPIurl = "api.thingspeak.com"; // "184.106.153.149" or api.thingspeak.com
 
