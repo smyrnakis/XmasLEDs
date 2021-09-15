@@ -72,7 +72,7 @@ unsigned long movementResetTimer = 600000;
 // Meteorological info for Geneva, CH
 // Sunset time: object/daily/data/0/sunsetTime
 String darkSkyUri = "https://darksky.net/forecast/46.2073,6.1499/si12/en.json";
-unsigned int turnOnThreshold = 17;
+unsigned int turnOnThreshold = 18;
 unsigned int turnOffThreshold = 0;
 
 const char* thinkSpeakAPIurl = "api.thingspeak.com"; // "184.106.153.149" or api.thingspeak.com
@@ -471,14 +471,15 @@ void handleClientConnection() {
                     // client.println("</table>");
 
                     // client.println("<table style=\"margin-left:auto;margin-right:auto;\">");
-                    client.println("<tr>");
-                    client.println("<td>");
-                    client.println("<p><a href=\"/lumUp\"><button class=\"button\">+</button></a></p>");
-                    client.println("</td>");
-                    client.println("<td>");
-                    client.println("<p><a href=\"/lumDow\"><button class=\"button\">-</button></a></p>");
-                    client.println("</td>");
-                    client.println("</tr>");
+
+                    // client.println("<tr>");
+                    // client.println("<td>");
+                    // client.println("<p><a href=\"/lumUp\"><button class=\"button\">+</button></a></p>");
+                    // client.println("</td>");
+                    // client.println("<td>");
+                    // client.println("<p><a href=\"/lumDow\"><button class=\"button\">-</button></a></p>");
+                    // client.println("</td>");
+                    // client.println("</tr>");
                     client.println("</table>");
 
                     client.println("<p></p>");
