@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ESP8266HTTPClient.h>
 #include <ESP8266WiFi.h>
+#include <EEPROM.h>
 #include <WiFiClientSecure.h>
 #include <WiFiManager.h>
 #include <NTPClient.h>
@@ -12,17 +13,28 @@
 #define USB_1 D7
 #define USB_2 D8
 
-const char* DEVICE_NAME = "LED_Controller";
+struct PersistentSettings {
+    uint32_t magic;
+    uint16_t autoOnOffsetMinutes;
+    uint8_t autoModeEnabled;
+    uint8_t reserved;
+};
+
+const char* DEVICE_NAME = "NightLEDs";
+const char* DEVICE_LABEL = "Night LEDs";
 const char* NTP_SERVER = "europe.pool.ntp.org";
 const char* OPEN_METEO_URL =
     "https://api.open-meteo.com/v1/forecast?latitude=46.20&longitude=6.15&daily=sunset&timezone=Europe%2FZurich&forecast_days=1";
 
+const uint32_t SETTINGS_MAGIC = 0x4E4C4453UL;
+const size_t EEPROM_SIZE_BYTES = 32;
 const unsigned long HTTP_CONNECTION_KEEPALIVE_MS = 2000;
 const unsigned long NTP_SYNC_INTERVAL_MS = 5UL * 60UL * 1000UL;
 const unsigned long SUNSET_REFRESH_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
 const unsigned long SUNSET_RETRY_INTERVAL_MS = 60UL * 1000UL;
 const unsigned long UI_AUTO_REFRESH_SECONDS = 30;
 
+const uint8_t AUTO_RESET_HOUR = 3;
 const uint16_t DEFAULT_SUNSET_OFFSET_MINUTES = 45;
 const uint16_t MAX_SUNSET_OFFSET_MINUTES = 240;
 const uint8_t SNOOZE_PRESET_COUNT = 5;
@@ -55,6 +67,8 @@ unsigned long lastSunsetAttemptMs = 0;
 
 uint32_t lastProcessedDayId = 0;
 uint32_t lastSunsetDayId = 0;
+uint32_t lastAutoOnDayId = 0;
+uint32_t lastAutoOffDayId = 0;
 int lastSunsetHttpCode = 0;
 
 String localIpAddress = "";
@@ -62,6 +76,8 @@ String timezoneAbbreviation = "CET";
 
 void handleOTA();
 void connectWifi();
+void loadPersistentSettings();
+void savePersistentSettingsIfNeeded();
 void primeTimeSources();
 void refreshTimeClient();
 void refreshSunsetIfNeeded();
@@ -80,10 +96,12 @@ void suspendAutoUntilTomorrow();
 void handleDayTransition();
 void applyAutoMode();
 uint32_t getLocalDayId();
+uint32_t getScheduleDayId();
 bool isAutoSuppressed();
 bool isInAutoWindow();
 int getCurrentMinutesOfDay();
 int getAutoStartMinutesOfDay();
+bool isInAutoOffWindow();
 String getCurrentTimeLabel();
 String getSunsetTimeLabel();
 String getAutoStartLabel();
@@ -96,6 +114,8 @@ String getAutoStatusLabel();
 String getOutputLabel();
 String boolLabel(bool value);
 String htmlEscaped(const String& value);
+void setAutoModeEnabled(bool enabled);
+void setAutoOnOffsetMinutes(uint16_t minutes);
 String getRequestPath(const String& requestLine);
 String getPathWithoutQuery(const String& requestPath);
 int getQueryIntValue(const String& requestPath, const char* key, int fallbackValue);
@@ -109,7 +129,9 @@ void setup() {
     Serial.begin(115200);
     delay(50);
     Serial.println();
-    Serial.println(F("Booting LED controller..."));
+    Serial.println(F("Booting Night LEDs controller..."));
+
+    loadPersistentSettings();
 
     connectWifi();
     server.begin();
@@ -171,6 +193,45 @@ void connectWifi() {
     Serial.println(localIpAddress);
 }
 
+void loadPersistentSettings() {
+    EEPROM.begin(EEPROM_SIZE_BYTES);
+
+    PersistentSettings settings;
+    EEPROM.get(0, settings);
+
+    if (settings.magic == SETTINGS_MAGIC &&
+        settings.autoOnOffsetMinutes <= MAX_SUNSET_OFFSET_MINUTES &&
+        (settings.autoModeEnabled == 0 || settings.autoModeEnabled == 1)) {
+        autoOnOffsetMinutes = settings.autoOnOffsetMinutes;
+        autoMode = (settings.autoModeEnabled == 1);
+        return;
+    }
+
+    autoOnOffsetMinutes = DEFAULT_SUNSET_OFFSET_MINUTES;
+    autoMode = true;
+    savePersistentSettingsIfNeeded();
+}
+
+void savePersistentSettingsIfNeeded() {
+    PersistentSettings currentSettings;
+    currentSettings.magic = SETTINGS_MAGIC;
+    currentSettings.autoOnOffsetMinutes = autoOnOffsetMinutes;
+    currentSettings.autoModeEnabled = autoMode ? 1 : 0;
+    currentSettings.reserved = 0;
+
+    PersistentSettings storedSettings;
+    EEPROM.get(0, storedSettings);
+
+    if (storedSettings.magic == currentSettings.magic &&
+        storedSettings.autoOnOffsetMinutes == currentSettings.autoOnOffsetMinutes &&
+        storedSettings.autoModeEnabled == currentSettings.autoModeEnabled) {
+        return;
+    }
+
+    EEPROM.put(0, currentSettings);
+    EEPROM.commit();
+}
+
 void primeTimeSources() {
     timeClient.begin();
 
@@ -183,9 +244,9 @@ void primeTimeSources() {
     }
 
     if (hasTimeSync) {
-        lastProcessedDayId = getLocalDayId();
+        lastProcessedDayId = getScheduleDayId();
         if (hasSunsetData) {
-            lastSunsetDayId = lastProcessedDayId;
+            lastSunsetDayId = getLocalDayId();
         }
     }
 }
@@ -319,10 +380,7 @@ void routeRequest(const String& requestPath, WiFiClient& client) {
     }
 
     if (pathOnly == "/auto") {
-        autoMode = !autoMode;
-        if (!autoMode) {
-            clearSnooze();
-        }
+        setAutoModeEnabled(!autoMode);
         sendRedirect(client);
         return;
     }
@@ -351,7 +409,7 @@ void routeRequest(const String& requestPath, WiFiClient& client) {
         if (requestedOffset > static_cast<int>(MAX_SUNSET_OFFSET_MINUTES)) {
             requestedOffset = MAX_SUNSET_OFFSET_MINUTES;
         }
-        autoOnOffsetMinutes = static_cast<uint16_t>(requestedOffset);
+        setAutoOnOffsetMinutes(static_cast<uint16_t>(requestedOffset));
         sendRedirect(client);
         return;
     }
@@ -376,7 +434,7 @@ void sendPage(WiFiClient& client) {
     const String networkLabel = getNetworkLabel();
     const String ipAddressLabel = getIpAddressLabel();
     const String snoozeHint = activeSnoozeMinutes > 0
-        ? String("Turns off and pauses auto until tomorrow.")
+        ? String("Turns off when the timer ends, even if midnight passes first.")
         : String("No active timer.");
     const String offsetLabel = String(autoOnOffsetMinutes) + " min";
 
@@ -390,7 +448,9 @@ void sendPage(WiFiClient& client) {
     client.print(F("<meta http-equiv=\"refresh\" content=\""));
     client.print(UI_AUTO_REFRESH_SECONDS);
     client.print(F("\">"));
-    client.print(F("<title>Xmas LEDs</title><style>"));
+    client.print(F("<title>"));
+    client.print(DEVICE_LABEL);
+    client.print(F("</title><style>"));
     client.print(F(
         "body{margin:0;font-family:Arial,sans-serif;background:radial-gradient(circle at top,#1e293b 0,#0f172a 42%,#020617 100%);"
         "color:#e2e8f0;min-height:100vh;}"
@@ -408,14 +468,17 @@ void sendPage(WiFiClient& client) {
         ".metric .hint{margin-top:8px;font-size:13px;color:#cbd5e1;}"
         ".panel{padding:18px 18px 20px;margin-top:16px;}"
         ".panel h2{margin:0 0 14px;font-size:18px;color:#f8fafc;}"
-        ".controls{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));}"
-        ".snooze-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));margin-top:10px;}"
-        ".button{display:inline-block;width:100%;padding:15px 16px;border-radius:16px;border:0;font-size:16px;font-weight:700;"
-        "text-decoration:none;text-align:center;color:#f8fafc;background:linear-gradient(135deg,#0ea5e9,#2563eb);}"
+        ".controls{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr));}"
+        ".controls-secondary{display:flex;justify-content:flex-start;margin-top:10px;}"
+        ".snooze-grid{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px;}"
+        ".button{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;min-width:0;padding:13px 10px;border-radius:16px;border:0;font-size:15px;font-weight:700;"
+        "text-decoration:none;text-align:center;color:#f8fafc;line-height:1.2;background:linear-gradient(135deg,#0ea5e9,#2563eb);}"
         ".button.alt{background:linear-gradient(135deg,#334155,#475569);}"
         ".button.warn{background:linear-gradient(135deg,#f97316,#ea580c);}"
         ".button.good{background:linear-gradient(135deg,#14b8a6,#0f766e);}"
         ".button.bad{background:linear-gradient(135deg,#ef4444,#b91c1c);}"
+        ".button.compact{padding:12px 10px;font-size:14px;}"
+        ".button.restart{width:auto;min-width:170px;}"
         "form{margin:0;}"
         ".form-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}"
         ".field{flex:1 1 180px;background:#0f172a;border:1px solid rgba(148,163,184,.28);color:#f8fafc;border-radius:14px;padding:14px 16px;font-size:16px;}"
@@ -424,10 +487,12 @@ void sendPage(WiFiClient& client) {
         ".debug-item strong{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:#94a3b8;margin-bottom:6px;}"
         ".debug-item span{font-size:15px;color:#f8fafc;}"
         ".badge{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(14,165,233,.16);color:#7dd3fc;margin-top:12px;}"
-        "@media (max-width:600px){.headline{font-size:28px}.metric .value{font-size:23px}}"));
+        "@media (max-width:600px){.headline{font-size:28px}.metric .value{font-size:23px}.button{font-size:14px;padding:12px 8px}}"));
     client.print(F("</style></head><body><div class=\"wrap\">"));
 
-    client.print(F("<section class=\"hero\"><div class=\"eyebrow\">Xmas LEDs</div>"));
+    client.print(F("<section class=\"hero\"><div class=\"eyebrow\">"));
+    client.print(DEVICE_LABEL);
+    client.print(F("</div>"));
     client.print(F("<div class=\"headline\">"));
     client.print(htmlEscaped(outputLabel));
     client.print(F("</div><p class=\"sub\">"));
@@ -472,20 +537,21 @@ void sendPage(WiFiClient& client) {
     client.print(F("<a class=\"button "));
     client.print(autoMode ? F("warn") : F("alt"));
     client.print(F("\" href=\"/auto\">"));
-    client.print(autoMode ? F("Disable Auto Mode") : F("Enable Auto Mode"));
+    client.print(autoMode ? F("Disable Auto") : F("Enable Auto"));
     client.print(F("</a>"));
-    client.print(F("<a class=\"button alt\" href=\"/restart\">Restart Device</a>"));
+    client.print(F("</div><div class=\"controls-secondary\">"));
+    client.print(F("<a class=\"button alt compact restart\" onclick=\"return confirm('Restart Night LEDs?');\" href=\"/restart\">Restart</a>"));
     client.print(F("</div></section>"));
 
     client.print(F("<section class=\"panel\"><h2>Snooze Presets</h2><div class=\"snooze-grid\">"));
     for (uint8_t i = 0; i < SNOOZE_PRESET_COUNT; ++i) {
-        client.print(F("<a class=\"button alt\" href=\"/snooze?minutes="));
+        client.print(F("<a class=\"button alt compact\" href=\"/snooze?minutes="));
         client.print(SNOOZE_PRESETS[i]);
-        client.print(F("\">Snooze "));
+        client.print(F("\">"));
         client.print(SNOOZE_PRESETS[i]);
         client.print(F("m</a>"));
     }
-    client.print(F("<a class=\"button alt\" href=\"/clear-snooze\">Clear Snooze</a></div></section>"));
+    client.print(F("<a class=\"button alt compact\" href=\"/clear-snooze\">Clear</a></div></section>"));
 
     client.print(F("<section class=\"panel\"><h2>Auto Schedule</h2>"));
     client.print(F("<form action=\"/set-offset\" method=\"get\"><div class=\"form-row\">"));
@@ -507,6 +573,7 @@ void sendPage(WiFiClient& client) {
     addMetric(client, F("Current Time"), currentTime);
     addMetric(client, F("Sunset Time"), sunsetTime);
     addMetric(client, F("Auto Start"), autoStart);
+    addMetric(client, F("Auto Reset"), F("03:00"));
     addMetric(client, F("Offset"), offsetLabel);
     addMetric(client, F("Snooze"), snoozeLabel);
     addMetric(client, F("WiFi"), networkLabel);
@@ -530,8 +597,11 @@ void setOutputs(bool turnOn) {
 
 void setManualOutput(bool turnOn) {
     clearSnooze();
-    suspendAutoUntilTomorrow();
     setOutputs(turnOn);
+
+    if (!turnOn) {
+        suspendAutoUntilTomorrow();
+    }
 }
 
 void toggleManualOutput() {
@@ -540,7 +610,6 @@ void toggleManualOutput() {
 
 void startSnooze(uint16_t minutes) {
     clearSnooze();
-    suspendAutoUntilTomorrow();
     setOutputs(true);
     activeSnoozeMinutes = minutes;
     snoozeStartedAtMs = millis();
@@ -561,14 +630,14 @@ void updateSnoozeState() {
         clearSnooze();
         setOutputs(false);
         suspendAutoUntilTomorrow();
-        Serial.println(F("Snooze expired. Outputs turned off until tomorrow's auto window."));
+        Serial.println(F("Snooze expired. Outputs turned off until the next schedule day."));
     }
 }
 
 void suspendAutoUntilTomorrow() {
     autoSuppressedToday = hasTimeSync;
     if (hasTimeSync) {
-        lastProcessedDayId = getLocalDayId();
+        lastProcessedDayId = getScheduleDayId();
     }
 }
 
@@ -577,7 +646,7 @@ void handleDayTransition() {
         return;
     }
 
-    const uint32_t currentDayId = getLocalDayId();
+    const uint32_t currentDayId = getScheduleDayId();
     if (lastProcessedDayId == 0) {
         lastProcessedDayId = currentDayId;
         return;
@@ -589,30 +658,43 @@ void handleDayTransition() {
 
     lastProcessedDayId = currentDayId;
     autoSuppressedToday = false;
-    clearSnooze();
 
-    if (autoMode) {
-        setOutputs(false);
-    }
-
-    Serial.println(F("Local day rolled over. Auto suppression cleared."));
+    Serial.println(F("Schedule day reset. Auto suppression cleared."));
 }
 
 void applyAutoMode() {
-    if (!autoMode || !hasTimeSync || !hasSunsetData || isAutoSuppressed()) {
+    if (!hasTimeSync) {
         return;
     }
 
-    if (isInAutoWindow()) {
-        if (!outputsOn) {
-            setOutputs(true);
-            Serial.println(F("Auto mode turned outputs on."));
+    const uint32_t currentLocalDayId = getLocalDayId();
+
+    if (autoMode && activeSnoozeMinutes == 0 && isInAutoOffWindow() && currentLocalDayId != lastAutoOffDayId) {
+        if (outputsOn) {
+            setOutputs(false);
+            Serial.println(F("Auto mode turned outputs off."));
         }
+        lastAutoOffDayId = currentLocalDayId;
+    }
+
+    if (!autoMode || !hasSunsetData || isAutoSuppressed() || !isInAutoWindow() || currentLocalDayId == lastAutoOnDayId) {
+        return;
+    }
+
+    lastAutoOnDayId = currentLocalDayId;
+    if (!outputsOn) {
+        setOutputs(true);
+        Serial.println(F("Auto mode turned outputs on."));
     }
 }
 
 uint32_t getLocalDayId() {
     return timeClient.getEpochTime() / 86400UL;
+}
+
+uint32_t getScheduleDayId() {
+    const unsigned long resetOffsetSeconds = static_cast<unsigned long>(AUTO_RESET_HOUR) * 3600UL;
+    return (timeClient.getEpochTime() - resetOffsetSeconds) / 86400UL;
 }
 
 bool isAutoSuppressed() {
@@ -636,6 +718,10 @@ int getAutoStartMinutesOfDay() {
         sunsetMinutes = 0;
     }
     return sunsetMinutes;
+}
+
+bool isInAutoOffWindow() {
+    return getCurrentMinutesOfDay() < (static_cast<int>(AUTO_RESET_HOUR) * 60);
 }
 
 String getCurrentTimeLabel() {
@@ -734,7 +820,7 @@ String getRelativeAgeLabel(unsigned long timestampMs) {
 
 String getAutoStatusLabel() {
     if (!autoMode) {
-        return F("Auto mode is disabled.");
+        return F("Auto mode is disabled. Lights stay in their current state until you change them.");
     }
 
     if (!hasTimeSync || !hasSunsetData) {
@@ -742,7 +828,7 @@ String getAutoStatusLabel() {
     }
 
     if (isAutoSuppressed()) {
-        return F("Auto is paused until tomorrow because of manual control or snooze.");
+        return F("Auto-on is paused until 03:00 because of manual off or snooze expiry.");
     }
 
     return String("Auto turns on at ") + getAutoStartLabel() + " and turns off at midnight.";
@@ -764,6 +850,28 @@ String htmlEscaped(const String& value) {
     escaped.replace("\"", "&quot;");
     escaped.replace("'", "&#39;");
     return escaped;
+}
+
+void setAutoModeEnabled(bool enabled) {
+    if (autoMode == enabled) {
+        return;
+    }
+
+    autoMode = enabled;
+    if (enabled && hasTimeSync && isInAutoOffWindow()) {
+        lastAutoOffDayId = getLocalDayId();
+    }
+
+    savePersistentSettingsIfNeeded();
+}
+
+void setAutoOnOffsetMinutes(uint16_t minutes) {
+    if (autoOnOffsetMinutes == minutes) {
+        return;
+    }
+
+    autoOnOffsetMinutes = minutes;
+    savePersistentSettingsIfNeeded();
 }
 
 String getRequestPath(const String& requestLine) {
