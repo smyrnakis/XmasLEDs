@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <ESP8266HTTPClient.h>
+#include <ESP8266mDNS.h>
 #include <ESP8266WiFi.h>
 #include <EEPROM.h>
 #include <WiFiClientSecure.h>
@@ -19,6 +20,14 @@ struct PersistentSettings {
     uint8_t autoModeEnabled;
     uint8_t reserved;
 };
+
+#ifndef DEVICE_API_KEY
+#define DEVICE_API_KEY ""
+#endif
+
+#ifndef DEVICE_FRIENDLY_NAME
+#define DEVICE_FRIENDLY_NAME "Night LEDs"
+#endif
 
 const char* DEVICE_NAME = "NightLEDs";
 const char* DEVICE_LABEL = "Night LEDs";
@@ -41,6 +50,8 @@ const uint8_t SNOOZE_PRESET_COUNT = 5;
 const uint16_t SNOOZE_PRESETS[SNOOZE_PRESET_COUNT] = {5, 10, 30, 60, 120};
 
 const char otaAuthPin[] = OTA_AUTH_PIN;
+const char deviceApiKey[] = DEVICE_API_KEY;
+const char friendlyDeviceName[] = DEVICE_FRIENDLY_NAME;
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, NTP_SERVER, 3600, NTP_SYNC_INTERVAL_MS);
@@ -73,11 +84,16 @@ int lastSunsetHttpCode = 0;
 
 String localIpAddress = "";
 String timezoneAbbreviation = "CET";
+String localDeviceId = "";
+String mdnsServiceName = "";
+bool mdnsStarted = false;
 
 void handleOTA();
 void connectWifi();
 void loadPersistentSettings();
 void savePersistentSettingsIfNeeded();
+void initializeDeviceIdentity();
+void startMdns();
 void primeTimeSources();
 void refreshTimeClient();
 void refreshSunsetIfNeeded();
@@ -86,6 +102,7 @@ void handleClientConnection();
 void routeRequest(const String& requestPath, WiFiClient& client);
 void sendPage(WiFiClient& client);
 void sendRedirect(WiFiClient& client, const char* location = "/");
+void sendJsonResponse(WiFiClient& client, int statusCode, const char* statusText, const String& body);
 void setOutputs(bool turnOn);
 void setManualOutput(bool turnOn);
 void toggleManualOutput();
@@ -116,9 +133,15 @@ String boolLabel(bool value);
 String htmlEscaped(const String& value);
 void setAutoModeEnabled(bool enabled);
 void setAutoOnOffsetMinutes(uint16_t minutes);
+String jsonEscaped(const String& value);
 String getRequestPath(const String& requestLine);
 String getPathWithoutQuery(const String& requestPath);
 int getQueryIntValue(const String& requestPath, const char* key, int fallbackValue);
+String getQueryValue(const String& requestPath, const char* key);
+bool isAuthorizedApiRequest(const String& requestPath);
+void sendApiDevice(WiFiClient& client);
+void sendApiState(WiFiClient& client);
+void handleApiPower(const String& requestPath, WiFiClient& client);
 void addMetric(WiFiClient& client, const String& label, const String& value);
 
 void setup() {
@@ -133,7 +156,9 @@ void setup() {
 
     loadPersistentSettings();
 
+    initializeDeviceIdentity();
     connectWifi();
+    startMdns();
     server.begin();
     handleOTA();
     primeTimeSources();
@@ -143,6 +168,9 @@ void setup() {
 
 void loop() {
     ArduinoOTA.handle();
+    if (mdnsStarted) {
+        MDNS.update();
+    }
     refreshTimeClient();
     handleDayTransition();
     refreshSunsetIfNeeded();
@@ -230,6 +258,36 @@ void savePersistentSettingsIfNeeded() {
 
     EEPROM.put(0, currentSettings);
     EEPROM.commit();
+}
+
+void initializeDeviceIdentity() {
+    char chipHex[7];
+    snprintf(chipHex, sizeof(chipHex), "%06X", ESP.getChipId());
+    localDeviceId = String("nightleds-") + chipHex;
+    mdnsServiceName = localDeviceId;
+    mdnsServiceName.toLowerCase();
+}
+
+void startMdns() {
+    if (WiFi.status() != WL_CONNECTED) {
+        return;
+    }
+
+    mdnsStarted = MDNS.begin(mdnsServiceName.c_str());
+    if (!mdnsStarted) {
+        Serial.println(F("mDNS start failed."));
+        return;
+    }
+
+    MDNS.setInstanceName(friendlyDeviceName);
+    MDNS.addService("http", "tcp", 80);
+    MDNS.addServiceTxt("http", "tcp", "id", localDeviceId);
+    MDNS.addServiceTxt("http", "tcp", "name", friendlyDeviceName);
+    MDNS.addServiceTxt("http", "tcp", "type", "light");
+
+    Serial.print(F("mDNS ready: http://"));
+    Serial.print(mdnsServiceName);
+    Serial.println(F(".local"));
 }
 
 void primeTimeSources() {
@@ -361,6 +419,21 @@ void handleClientConnection() {
 void routeRequest(const String& requestPath, WiFiClient& client) {
     const String pathOnly = getPathWithoutQuery(requestPath);
 
+    if (pathOnly == "/api/device") {
+        sendApiDevice(client);
+        return;
+    }
+
+    if (pathOnly == "/api/state") {
+        sendApiState(client);
+        return;
+    }
+
+    if (pathOnly == "/api/power") {
+        handleApiPower(requestPath, client);
+        return;
+    }
+
     if (pathOnly == "/toggle") {
         toggleManualOutput();
         sendRedirect(client);
@@ -433,6 +506,7 @@ void sendPage(WiFiClient& client) {
     const String autoStatusLabel = getAutoStatusLabel();
     const String networkLabel = getNetworkLabel();
     const String ipAddressLabel = getIpAddressLabel();
+    const String apiBaseUrl = localIpAddress.length() > 0 ? String("http://") + localIpAddress : String("n/a");
     const String snoozeHint = activeSnoozeMinutes > 0
         ? String("Turns off when the timer ends, even if midnight passes first.")
         : String("No active timer.");
@@ -577,7 +651,10 @@ void sendPage(WiFiClient& client) {
     addMetric(client, F("Offset"), offsetLabel);
     addMetric(client, F("Snooze"), snoozeLabel);
     addMetric(client, F("WiFi"), networkLabel);
+    addMetric(client, F("Device ID"), localDeviceId);
+    addMetric(client, F("mDNS"), mdnsStarted ? mdnsServiceName + ".local" : String("Unavailable"));
     addMetric(client, F("IP"), ipAddressLabel);
+    addMetric(client, F("API"), apiBaseUrl + "/api/device");
     addMetric(client, F("Open-Meteo HTTP"), String(lastSunsetHttpCode));
     addMetric(client, F("Uptime"), getUptimeLabel());
     client.print(F("</div></section></div></body></html>"));
@@ -587,6 +664,16 @@ void sendRedirect(WiFiClient& client, const char* location) {
     client.print(F("HTTP/1.1 303 See Other\r\nLocation: "));
     client.print(location);
     client.print(F("\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n"));
+}
+
+void sendJsonResponse(WiFiClient& client, int statusCode, const char* statusText, const String& body) {
+    client.print(F("HTTP/1.1 "));
+    client.print(statusCode);
+    client.print(' ');
+    client.print(statusText);
+    client.print(F("\r\nContent-Type: application/json; charset=utf-8\r\n"));
+    client.print(F("Cache-Control: no-store\r\nConnection: close\r\n\r\n"));
+    client.print(body);
 }
 
 void setOutputs(bool turnOn) {
@@ -874,6 +961,16 @@ void setAutoOnOffsetMinutes(uint16_t minutes) {
     savePersistentSettingsIfNeeded();
 }
 
+String jsonEscaped(const String& value) {
+    String escaped = value;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    escaped.replace("\r", "\\r");
+    escaped.replace("\n", "\\n");
+    escaped.replace("\t", "\\t");
+    return escaped;
+}
+
 String getRequestPath(const String& requestLine) {
     const int firstSpace = requestLine.indexOf(' ');
     if (firstSpace < 0) {
@@ -898,10 +995,19 @@ String getPathWithoutQuery(const String& requestPath) {
 }
 
 int getQueryIntValue(const String& requestPath, const char* key, int fallbackValue) {
+    const String rawValue = getQueryValue(requestPath, key);
+    if (rawValue.length() == 0) {
+        return fallbackValue;
+    }
+
+    return rawValue.toInt();
+}
+
+String getQueryValue(const String& requestPath, const char* key) {
     const String token = String(key) + "=";
     const int tokenIndex = requestPath.indexOf(token);
     if (tokenIndex < 0) {
-        return fallbackValue;
+        return "";
     }
 
     int valueStart = tokenIndex + token.length();
@@ -910,7 +1016,74 @@ int getQueryIntValue(const String& requestPath, const char* key, int fallbackVal
         valueEnd = requestPath.length();
     }
 
-    return requestPath.substring(valueStart, valueEnd).toInt();
+    return requestPath.substring(valueStart, valueEnd);
+}
+
+bool isAuthorizedApiRequest(const String& requestPath) {
+    if (strlen(deviceApiKey) == 0) {
+        return true;
+    }
+
+    return getQueryValue(requestPath, "key") == String(deviceApiKey);
+}
+
+void sendApiDevice(WiFiClient& client) {
+    String body = "{";
+    body += "\"deviceId\":\"" + jsonEscaped(localDeviceId) + "\",";
+    body += "\"name\":\"" + jsonEscaped(String(friendlyDeviceName)) + "\",";
+    body += "\"type\":\"light\",";
+    body += "\"on\":" + String(outputsOn ? "true" : "false") + ",";
+    body += "\"autoMode\":" + String(autoMode ? "true" : "false") + ",";
+    body += "\"autoSuppressed\":" + String(isAutoSuppressed() ? "true" : "false") + ",";
+    body += "\"snoozeActive\":" + String(activeSnoozeMinutes > 0 ? "true" : "false") + ",";
+    body += "\"currentTime\":\"" + jsonEscaped(getCurrentTimeLabel()) + "\",";
+    body += "\"sunsetTime\":\"" + jsonEscaped(getSunsetTimeLabel()) + "\",";
+    body += "\"autoStartTime\":\"" + jsonEscaped(getAutoStartLabel()) + "\",";
+    body += "\"ip\":\"" + jsonEscaped(localIpAddress) + "\",";
+    body += "\"mdns\":\"" + jsonEscaped(mdnsServiceName + ".local") + "\",";
+    body += "\"api\":{";
+    body += "\"state\":\"/api/state\",";
+    body += "\"power\":\"/api/power?state=on|off|toggle\"";
+    body += "}";
+    body += "}";
+
+    sendJsonResponse(client, 200, "OK", body);
+}
+
+void sendApiState(WiFiClient& client) {
+    String body = "{";
+    body += "\"deviceId\":\"" + jsonEscaped(localDeviceId) + "\",";
+    body += "\"on\":" + String(outputsOn ? "true" : "false") + ",";
+    body += "\"online\":true,";
+    body += "\"autoMode\":" + String(autoMode ? "true" : "false") + ",";
+    body += "\"autoSuppressed\":" + String(isAutoSuppressed() ? "true" : "false") + ",";
+    body += "\"snoozeMinutes\":" + String(activeSnoozeMinutes) + ",";
+    body += "\"currentTime\":\"" + jsonEscaped(getCurrentTimeLabel()) + "\",";
+    body += "\"sunsetTime\":\"" + jsonEscaped(getSunsetTimeLabel()) + "\"";
+    body += "}";
+
+    sendJsonResponse(client, 200, "OK", body);
+}
+
+void handleApiPower(const String& requestPath, WiFiClient& client) {
+    if (!isAuthorizedApiRequest(requestPath)) {
+        sendJsonResponse(client, 401, "Unauthorized", "{\"error\":\"invalid_api_key\"}");
+        return;
+    }
+
+    const String state = getQueryValue(requestPath, "state");
+    if (state == "on") {
+        setManualOutput(true);
+    } else if (state == "off") {
+        setManualOutput(false);
+    } else if (state == "toggle") {
+        toggleManualOutput();
+    } else {
+        sendJsonResponse(client, 400, "Bad Request", "{\"error\":\"state_must_be_on_off_or_toggle\"}");
+        return;
+    }
+
+    sendApiState(client);
 }
 
 void addMetric(WiFiClient& client, const String& label, const String& value) {
